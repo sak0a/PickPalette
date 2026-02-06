@@ -3,6 +3,8 @@ import SwiftUI
 /// First-launch overlay explaining the eyedropper hotkey and features.
 struct OnboardingOverlay: View {
     @Binding var isPresented: Bool
+    @Environment(\.useGlassStyle) private var useGlassStyle
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         VStack(spacing: 16) {
@@ -45,7 +47,25 @@ struct OnboardingOverlay: View {
         }
         .padding(24)
         .frame(maxWidth: 320)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(
+                    PopoverTheme.panelBackground(
+                        useGlassStyle: useGlassStyle,
+                        colorScheme: colorScheme
+                    )
+                )
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(
+                    PopoverTheme.subtleStroke(
+                        useGlassStyle: useGlassStyle,
+                        colorScheme: colorScheme
+                    ),
+                    lineWidth: 0.5
+                )
+        )
     }
 
     private func featureRow(icon: String, title: String, description: String) -> some View {

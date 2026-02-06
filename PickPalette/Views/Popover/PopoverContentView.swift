@@ -22,6 +22,18 @@ struct PopoverContentView: View {
             width: appState.layoutConfig.containerWidth,
             height: appState.layoutConfig.containerHeight
         )
+        .background(
+            PopoverTheme.rootBackground(
+                useGlassStyle: appState.effectiveGlassStyle,
+                colorScheme: colorScheme
+            )
+        )
+        .foregroundStyle(
+            PopoverTheme.primaryTextColor(
+                useGlassStyle: appState.effectiveGlassStyle,
+                colorScheme: colorScheme
+            )
+        )
         .contextMenu {
             Button {
                 onEditLayout()
@@ -50,6 +62,8 @@ struct PopoverContentView: View {
         .animation(.spring(duration: 0.3), value: appState.showCopiedFeedback)
         .animation(.spring(duration: 0.3), value: showOnboarding)
         .animation(.spring(duration: 0.3), value: appState.layoutConfig)
+        .preferredColorScheme(appState.appearance.colorSchemeOverride)
+        .environment(\.useGlassStyle, appState.effectiveGlassStyle)
     }
 
     // MARK: - Copied Banner
@@ -71,9 +85,20 @@ struct PopoverContentView: View {
             .background(
                 ZStack {
                     Capsule()
-                        .fill(colorScheme == .dark ? .black.opacity(0.55) : .white.opacity(0.75))
+                        .fill(
+                            PopoverTheme.bannerBackground(
+                                useGlassStyle: appState.effectiveGlassStyle,
+                                colorScheme: colorScheme
+                            )
+                        )
                     Capsule()
-                        .strokeBorder(colorScheme == .dark ? .white.opacity(0.12) : .black.opacity(0.08), lineWidth: 0.5)
+                        .strokeBorder(
+                            PopoverTheme.subtleStroke(
+                                useGlassStyle: appState.effectiveGlassStyle,
+                                colorScheme: colorScheme
+                            ),
+                            lineWidth: 0.5
+                        )
                 }
             )
             .shadow(color: .black.opacity(0.2), radius: 12, y: 4)
@@ -97,13 +122,22 @@ struct ToolbarButton: View {
         Button(action: action) {
             Image(systemName: icon)
                 .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(isHovering ? .primary : .secondary)
+                .foregroundStyle(
+                    isHovering
+                        ? Color.primary
+                        : PopoverTheme.secondaryTextColor(
+                            useGlassStyle: useGlassStyle,
+                            colorScheme: colorScheme
+                        )
+                )
                 .frame(width: 28, height: 28)
                 .background(
                     RoundedRectangle(cornerRadius: 6)
-                        .fill(useGlassStyle
-                            ? AnyShapeStyle(.ultraThinMaterial)
-                            : AnyShapeStyle(colorScheme == .dark ? Color(white: 0.18) : Color(white: 0.93))
+                        .fill(
+                            PopoverTheme.controlBackground(
+                                useGlassStyle: useGlassStyle,
+                                colorScheme: colorScheme
+                            )
                         )
                         .opacity(isHovering ? 1 : 0)
                 )
@@ -137,14 +171,23 @@ struct CopyFormatButton: View {
                 Text(format.name)
                     .font(.system(size: 11, weight: .medium))
             }
-            .foregroundStyle(isHovering ? .primary : .secondary)
+            .foregroundStyle(
+                isHovering
+                    ? Color.primary
+                    : PopoverTheme.secondaryTextColor(
+                        useGlassStyle: useGlassStyle,
+                        colorScheme: colorScheme
+                    )
+            )
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
             .background(
                 RoundedRectangle(cornerRadius: 6)
-                    .fill(useGlassStyle
-                        ? AnyShapeStyle(.ultraThinMaterial)
-                        : AnyShapeStyle(colorScheme == .dark ? Color(white: 0.18) : Color(white: 0.93))
+                    .fill(
+                        PopoverTheme.controlBackground(
+                            useGlassStyle: useGlassStyle,
+                            colorScheme: colorScheme
+                        )
                     )
                     .opacity(isHovering ? 1 : 0)
             )
@@ -167,6 +210,8 @@ struct GlassSegmentedControl<T: Hashable>: View {
     let options: [(T, String)]
 
     @Namespace private var segmentNamespace
+    @Environment(\.useGlassStyle) private var useGlassStyle
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         HStack(spacing: 2) {
@@ -198,11 +243,22 @@ struct GlassSegmentedControl<T: Hashable>: View {
         .padding(2)
         .background(
             RoundedRectangle(cornerRadius: 6)
-                .fill(.primary.opacity(0.06))
+                .fill(
+                    PopoverTheme.subtleFill(
+                        useGlassStyle: useGlassStyle,
+                        colorScheme: colorScheme
+                    )
+                )
         )
         .overlay(
             RoundedRectangle(cornerRadius: 6)
-                .strokeBorder(.primary.opacity(0.06), lineWidth: 0.5)
+                .strokeBorder(
+                    PopoverTheme.subtleStroke(
+                        useGlassStyle: useGlassStyle,
+                        colorScheme: colorScheme
+                    ),
+                    lineWidth: 0.5
+                )
         )
     }
 }

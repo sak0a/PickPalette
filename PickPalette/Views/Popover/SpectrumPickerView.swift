@@ -1,6 +1,72 @@
 import SwiftUI
 import AppKit
 
+private enum SpectrumImageCache {
+    private static let lock = NSLock()
+
+    private static var colorWheelImages: [String: CGImage] = [:]
+    private static var colorWheelOrder: [String] = []
+    private static let maxColorWheelEntries = 8
+
+    private static var hslSpectrumImages: [String: CGImage] = [:]
+    private static var hslSpectrumOrder: [String] = []
+    private static let maxHSLSpectrumEntries = 24
+
+    static func colorWheelImage(width: Int, height: Int, build: () -> CGImage?) -> CGImage? {
+        let key = "\(width)x\(height)"
+        return cachedImage(
+            key: key,
+            storage: &colorWheelImages,
+            order: &colorWheelOrder,
+            limit: maxColorWheelEntries,
+            build: build
+        )
+    }
+
+    static func hslSpectrumImage(width: Int, height: Int, lightness: CGFloat, build: (CGFloat) -> CGImage?) -> CGImage? {
+        let normalizedLightness = min(max(lightness, 0), 1)
+        let quantized = (normalizedLightness * 100).rounded() / 100
+        let key = "\(width)x\(height):\(Int(quantized * 100))"
+        return cachedImage(
+            key: key,
+            storage: &hslSpectrumImages,
+            order: &hslSpectrumOrder,
+            limit: maxHSLSpectrumEntries,
+            build: { build(quantized) }
+        )
+    }
+
+    private static func cachedImage(
+        key: String,
+        storage: inout [String: CGImage],
+        order: inout [String],
+        limit: Int,
+        build: () -> CGImage?
+    ) -> CGImage? {
+        lock.lock()
+        if let existing = storage[key] {
+            lock.unlock()
+            return existing
+        }
+        lock.unlock()
+
+        guard let image = build() else { return nil }
+
+        lock.lock()
+        if storage[key] == nil {
+            storage[key] = image
+            order.append(key)
+            if order.count > limit, let evicted = order.first {
+                order.removeFirst()
+                storage.removeValue(forKey: evicted)
+            }
+        }
+        let cached = storage[key]
+        lock.unlock()
+        return cached
+    }
+}
+
 /// Adaptive color picker area.
 /// HSL/HSB: rectangular saturation-brightness picker with hue from slider.
 /// RGB: full color wheel showing all hues.
@@ -52,7 +118,7 @@ struct ColorWheelView: View {
         ZStack {
             // Color wheel rendered as CGImage
             Canvas { context, size in
-                if let wheelImage = generateColorWheel(size: size) {
+                if let wheelImage = cachedColorWheelImage(size: size) {
                     context.draw(Image(decorative: wheelImage, scale: 1), in: CGRect(origin: .zero, size: size))
                 }
             }
@@ -95,6 +161,15 @@ struct ColorWheelView: View {
         .accessibilityHint("Drag to select hue and saturation")
     }
 
+    private func cachedColorWheelImage(size: CGSize) -> CGImage? {
+        let width = Int(size.width.rounded(.down))
+        let height = Int(size.height.rounded(.down))
+        guard width > 0, height > 0 else { return nil }
+        return SpectrumImageCache.colorWheelImage(width: width, height: height) {
+            generateColorWheel(width: width, height: height)
+        }
+    }
+
     private func handleWheelDrag(at point: CGPoint) {
         let center = CGPoint(x: diameter / 2, y: diameter / 2)
         let dx = point.x - center.x
@@ -116,23 +191,18 @@ struct ColorWheelView: View {
         appState.currentColor = newColor
     }
 
-    private func generateColorWheel(size: CGSize) -> CGImage? {
-        let w = Int(size.width)
-        let h = Int(size.height)
-        guard w > 0, h > 0 else { return nil }
+    private func generateColorWheel(width: Int, height: Int) -> CGImage? {
+        let center = CGPoint(x: CGFloat(width) / 2, y: CGFloat(height) / 2)
+        let maxR = min(CGFloat(width), CGFloat(height)) / 2
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
 
-        let center = CGPoint(x: CGFloat(w) / 2, y: CGFloat(h) / 2)
-        let maxR = min(CGFloat(w), CGFloat(h)) / 2
-
-        var pixels = [UInt8](repeating: 0, count: w * h * 4)
-
-        for py in 0..<h {
-            for px in 0..<w {
+        for py in 0..<height {
+            for px in 0..<width {
                 let dx = CGFloat(px) - center.x
                 let dy = CGFloat(py) - center.y
                 let dist = sqrt(dx * dx + dy * dy)
 
-                let idx = (py * w + px) * 4
+                let idx = (py * width + px) * 4
 
                 if dist <= maxR {
                     var angle = atan2(dy, dx) + .pi / 2
@@ -154,8 +224,8 @@ struct ColorWheelView: View {
         let colorSpace = CGColorSpaceCreateDeviceRGB()
         guard let ctx = CGContext(
             data: &pixels,
-            width: w, height: h,
-            bitsPerComponent: 8, bytesPerRow: w * 4,
+            width: width, height: height,
+            bitsPerComponent: 8, bytesPerRow: width * 4,
             space: colorSpace,
             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
         ) else { return nil }
@@ -182,7 +252,9 @@ struct HSLSquarePickerView: View {
     var body: some View {
         ZStack {
             Canvas { context, size in
-                drawHSLSpectrum(context: context, size: size)
+                if let spectrumImage = cachedSpectrumImage(size: size) {
+                    context.draw(Image(decorative: spectrumImage, scale: 1), in: CGRect(origin: .zero, size: size))
+                }
             }
             .frame(width: width, height: height)
 
@@ -215,21 +287,49 @@ struct HSLSquarePickerView: View {
         .accessibilityHint("Drag to select hue and saturation")
     }
 
-    private func drawHSLSpectrum(context: GraphicsContext, size: CGSize) {
-        let step = 3
-        let cols = Int(size.width) / step
-        let rows = Int(size.height) / step
-        let l = appState.currentColor.lightness
+    private func cachedSpectrumImage(size: CGSize) -> CGImage? {
+        let width = Int(size.width.rounded(.down))
+        let height = Int(size.height.rounded(.down))
+        guard width > 0, height > 0 else { return nil }
+        return SpectrumImageCache.hslSpectrumImage(
+            width: width,
+            height: height,
+            lightness: appState.currentColor.lightness
+        ) { lightness in
+            generateHSLSpectrum(width: width, height: height, lightness: lightness)
+        }
+    }
 
-        for col in 0..<cols {
-            for row in 0..<rows {
-                let h = CGFloat(col) / CGFloat(cols)
-                let s = 1.0 - CGFloat(row) / CGFloat(rows)
-                let cm = ColorModel.fromHSL(h: h, s: s, l: l)
-                let rect = CGRect(x: CGFloat(col * step), y: CGFloat(row * step), width: CGFloat(step), height: CGFloat(step))
-                context.fill(Path(rect), with: .color(cm.color))
+    private func generateHSLSpectrum(width: Int, height: Int, lightness: CGFloat) -> CGImage? {
+        let effectiveWidth = max(width - 1, 1)
+        let effectiveHeight = max(height - 1, 1)
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+
+        for y in 0..<height {
+            for x in 0..<width {
+                let hue = CGFloat(x) / CGFloat(effectiveWidth)
+                let saturation = 1.0 - (CGFloat(y) / CGFloat(effectiveHeight))
+                let color = ColorModel.fromHSL(h: hue, s: saturation, l: lightness)
+                let idx = (y * width + x) * 4
+                pixels[idx + 0] = UInt8(round(color.red * 255))
+                pixels[idx + 1] = UInt8(round(color.green * 255))
+                pixels[idx + 2] = UInt8(round(color.blue * 255))
+                pixels[idx + 3] = 255
             }
         }
+
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        guard let ctx = CGContext(
+            data: &pixels,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: width * 4,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+
+        return ctx.makeImage()
     }
 }
 

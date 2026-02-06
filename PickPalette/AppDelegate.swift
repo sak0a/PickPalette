@@ -149,8 +149,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                 }
             }
         )
-            .environment(\.useGlassStyle, appState.useGlassStyle)
-        popover.contentViewController = NSHostingController(rootView: contentView)
+        let hostingController = NSHostingController(rootView: contentView)
+        hostingController.view.appearance = appState.appearance.nsAppearance
+        popover.contentViewController = hostingController
     }
 
     // NSPopoverDelegate — no-op; @Observable keeps the view in sync automatically.
@@ -162,6 +163,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private func showPopover() {
         guard let button = statusItem.button else { return }
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        popover.contentViewController?.view.window?.appearance = appState.appearance.nsAppearance
         popover.contentViewController?.view.window?.makeKey()
     }
 
@@ -201,7 +203,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
             if self.appState.showHUDAfterPick {
                 let formatted = self.appState.defaultFormat.format(color: model)
-                self.hudController.show(color: model, formattedValue: formatted)
+                self.hudController.show(
+                    color: model,
+                    formattedValue: formatted,
+                    useGlassStyle: self.appState.effectiveGlassStyle,
+                    appearanceMode: self.appState.appearance
+                )
             }
         }
     }
@@ -276,7 +283,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         let editorView = LayoutEditorView(appState: appState) { [weak self] in
             self?.editorWindow?.close()
         }
-            .environment(\.useGlassStyle, appState.useGlassStyle)
         let hostingController = NSHostingController(rootView: editorView)
 
         let window = NSWindow(contentViewController: hostingController)

@@ -44,6 +44,7 @@ enum SettingsTab: String, CaseIterable, Hashable {
 struct SettingsView: View {
     @Bindable var appState: AppState
     @State private var selectedTab: SettingsTab = .general
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         HStack(spacing: 0) {
@@ -53,7 +54,10 @@ struct SettingsView: View {
 
             // Divider
             Rectangle()
-                .fill(.primary.opacity(0.06))
+                .fill(SettingsTheme.dividerColor(
+                    useGlassStyle: appState.effectiveGlassStyle,
+                    colorScheme: colorScheme
+                ))
                 .frame(width: 1)
 
             // Content
@@ -107,20 +111,30 @@ struct SettingsView: View {
             .animation(.spring(duration: 0.3, bounce: 0.1), value: selectedTab)
         }
         .frame(width: 600, height: 480)
-        .environment(\.useGlassStyle, appState.useGlassStyle)
+        .background(SettingsTheme.windowBackground(
+            useGlassStyle: appState.effectiveGlassStyle,
+            colorScheme: colorScheme
+        ))
+        .foregroundStyle(SettingsTheme.primaryTextColor(
+            useGlassStyle: appState.effectiveGlassStyle,
+            colorScheme: colorScheme
+        ))
+        .environment(\.useGlassStyle, appState.effectiveGlassStyle)
     }
 
     // MARK: - Sidebar
 
     @Namespace private var sidebarNamespace
-    @Environment(\.colorScheme) private var colorScheme
 
     private var settingsSidebar: some View {
         VStack(spacing: 4) {
             // Title area
             Text("Settings")
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(SettingsTheme.secondaryTextColor(
+                    useGlassStyle: appState.effectiveGlassStyle,
+                    colorScheme: colorScheme
+                ))
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 16)
                 .padding(.top, 20)
@@ -144,14 +158,18 @@ struct SettingsView: View {
             // Version info
             Text("PickPalette v1.0")
                 .font(.system(size: 10))
-                .foregroundStyle(.quaternary)
+                .foregroundStyle(SettingsTheme.tertiaryTextColor(
+                    useGlassStyle: appState.effectiveGlassStyle,
+                    colorScheme: colorScheme
+                ))
                 .padding(.bottom, 12)
         }
         .padding(.horizontal, 8)
         .background(
-            appState.useGlassStyle
-                ? AnyShapeStyle(.ultraThinMaterial.opacity(0.5))
-                : AnyShapeStyle(colorScheme == .dark ? Color(white: 0.12) : Color(white: 0.94))
+            SettingsTheme.sidebarBackground(
+                useGlassStyle: appState.effectiveGlassStyle,
+                colorScheme: colorScheme
+            )
         )
     }
 }
@@ -281,7 +299,10 @@ struct PermissionRow: View {
                 }
                 Text(description)
                     .font(.system(size: 10))
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(SettingsTheme.tertiaryTextColor(
+                        useGlassStyle: useGlassStyle,
+                        colorScheme: colorScheme
+                    ))
             }
 
             Spacer()
@@ -297,10 +318,10 @@ struct PermissionRow: View {
                         .padding(.vertical, 4)
                         .background(
                             RoundedRectangle(cornerRadius: 5)
-                                .fill(useGlassStyle
-                                    ? AnyShapeStyle(.ultraThinMaterial)
-                                    : AnyShapeStyle(colorScheme == .dark ? Color(white: 0.18) : Color(white: 0.93))
-                                )
+                                .fill(SettingsTheme.controlBackground(
+                                    useGlassStyle: useGlassStyle,
+                                    colorScheme: colorScheme
+                                ))
                                 .opacity(isHovering ? 1 : 0.6)
                         )
                         .overlay(
@@ -346,9 +367,12 @@ struct AppearanceSettingsView: View {
                             )
                         )
 
-                        Text("Use translucent glass materials for backgrounds. Disable for solid fill colors.")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.tertiary)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Use translucent glass materials for backgrounds. Disable for solid fill colors.")
+                            Text("Glass is also disabled when macOS Reduce Transparency is enabled.")
+                        }
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
                     }
                 }
 
@@ -780,13 +804,17 @@ struct FormatsSettingsView: View {
             }
             .frame(width: 170)
             .background(
-                useGlassStyle
-                    ? AnyShapeStyle(.ultraThinMaterial.opacity(0.3))
-                    : AnyShapeStyle(colorScheme == .dark ? Color(white: 0.12) : Color(white: 0.94))
+                SettingsTheme.sidebarBackground(
+                    useGlassStyle: useGlassStyle,
+                    colorScheme: colorScheme
+                )
             )
 
             Rectangle()
-                .fill(.primary.opacity(0.06))
+                .fill(SettingsTheme.dividerColor(
+                    useGlassStyle: useGlassStyle,
+                    colorScheme: colorScheme
+                ))
                 .frame(width: 1)
 
             // Format editor
@@ -1032,13 +1060,17 @@ struct PalettesSettingsView: View {
             }
             .frame(width: 170)
             .background(
-                useGlassStyle
-                    ? AnyShapeStyle(.ultraThinMaterial.opacity(0.3))
-                    : AnyShapeStyle(colorScheme == .dark ? Color(white: 0.12) : Color(white: 0.94))
+                SettingsTheme.sidebarBackground(
+                    useGlassStyle: useGlassStyle,
+                    colorScheme: colorScheme
+                )
             )
 
             Rectangle()
-                .fill(.primary.opacity(0.06))
+                .fill(SettingsTheme.dividerColor(
+                    useGlassStyle: useGlassStyle,
+                    colorScheme: colorScheme
+                ))
                 .frame(width: 1)
 
             // Palette detail
@@ -1237,6 +1269,93 @@ extension EnvironmentValues {
     }
 }
 
+private enum SettingsTheme {
+    static func windowBackground(useGlassStyle: Bool, colorScheme: ColorScheme) -> AnyShapeStyle {
+        if useGlassStyle {
+            return AnyShapeStyle(
+                colorScheme == .dark
+                    ? Color.clear
+                    : Color.white.opacity(0.18)
+            )
+        }
+        return AnyShapeStyle(
+            colorScheme == .dark
+                ? Color(white: 0.10).opacity(0.94)
+                : Color.white.opacity(0.84)
+        )
+    }
+
+    static func sidebarBackground(useGlassStyle: Bool, colorScheme: ColorScheme) -> AnyShapeStyle {
+        if useGlassStyle {
+            if colorScheme == .dark {
+                return AnyShapeStyle(.ultraThinMaterial.opacity(0.56))
+            }
+            return AnyShapeStyle(.thickMaterial.opacity(0.90))
+        }
+        return AnyShapeStyle(
+            colorScheme == .dark
+                ? Color(white: 0.13).opacity(0.90)
+                : Color.white.opacity(0.72)
+        )
+    }
+
+    static func sectionBackground(useGlassStyle: Bool, colorScheme: ColorScheme) -> AnyShapeStyle {
+        if useGlassStyle {
+            if colorScheme == .dark {
+                return AnyShapeStyle(.ultraThinMaterial.opacity(0.64))
+            }
+            return AnyShapeStyle(.regularMaterial.opacity(0.94))
+        }
+        return AnyShapeStyle(
+            colorScheme == .dark
+                ? Color(white: 0.16).opacity(0.92)
+                : Color.white.opacity(0.86)
+        )
+    }
+
+    static func controlBackground(useGlassStyle: Bool, colorScheme: ColorScheme) -> AnyShapeStyle {
+        if useGlassStyle {
+            if colorScheme == .dark {
+                return AnyShapeStyle(.thinMaterial.opacity(0.92))
+            }
+            return AnyShapeStyle(.thickMaterial.opacity(0.98))
+        }
+        return AnyShapeStyle(
+            colorScheme == .dark
+                ? Color(white: 0.20).opacity(0.92)
+                : Color.white.opacity(0.92)
+        )
+    }
+
+    static func dividerColor(useGlassStyle: Bool, colorScheme: ColorScheme) -> Color {
+        if useGlassStyle {
+            return colorScheme == .dark ? .white.opacity(0.11) : .black.opacity(0.08)
+        }
+        return colorScheme == .dark ? .white.opacity(0.10) : .black.opacity(0.10)
+    }
+
+    static func primaryTextColor(useGlassStyle: Bool, colorScheme: ColorScheme) -> Color {
+        if useGlassStyle {
+            return colorScheme == .dark ? .white.opacity(0.93) : .black.opacity(0.84)
+        }
+        return colorScheme == .dark ? .white.opacity(0.94) : .black.opacity(0.88)
+    }
+
+    static func secondaryTextColor(useGlassStyle: Bool, colorScheme: ColorScheme) -> Color {
+        if useGlassStyle {
+            return colorScheme == .dark ? .white.opacity(0.78) : .black.opacity(0.70)
+        }
+        return colorScheme == .dark ? .white.opacity(0.80) : .black.opacity(0.74)
+    }
+
+    static func tertiaryTextColor(useGlassStyle: Bool, colorScheme: ColorScheme) -> Color {
+        if useGlassStyle {
+            return colorScheme == .dark ? .white.opacity(0.56) : .black.opacity(0.50)
+        }
+        return colorScheme == .dark ? .white.opacity(0.58) : .black.opacity(0.56)
+    }
+}
+
 // MARK: - Reusable Glass Components
 
 /// Glass section card with a title and content.
@@ -1251,7 +1370,10 @@ struct GlassSection<Content: View>: View {
         VStack(alignment: .leading, spacing: 10) {
             Text(title.uppercased())
                 .font(.system(size: 10, weight: .bold, design: .rounded))
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(SettingsTheme.tertiaryTextColor(
+                    useGlassStyle: useGlassStyle,
+                    colorScheme: colorScheme
+                ))
                 .tracking(0.5)
 
             content
@@ -1260,10 +1382,10 @@ struct GlassSection<Content: View>: View {
         .padding(14)
         .background(
             RoundedRectangle(cornerRadius: 10)
-                .fill(useGlassStyle
-                    ? AnyShapeStyle(.ultraThinMaterial.opacity(0.6))
-                    : AnyShapeStyle(colorScheme == .dark ? Color(white: 0.15) : Color(white: 0.96))
-                )
+                .fill(SettingsTheme.sectionBackground(
+                    useGlassStyle: useGlassStyle,
+                    colorScheme: colorScheme
+                ))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 10)
@@ -1353,10 +1475,10 @@ struct GlassPicker<T: Hashable>: View {
                 .padding(.vertical, 5)
                 .background(
                     RoundedRectangle(cornerRadius: 6)
-                        .fill(useGlassStyle
-                            ? AnyShapeStyle(.ultraThinMaterial)
-                            : AnyShapeStyle(colorScheme == .dark ? Color(white: 0.18) : Color(white: 0.93))
-                        )
+                        .fill(SettingsTheme.controlBackground(
+                            useGlassStyle: useGlassStyle,
+                            colorScheme: colorScheme
+                        ))
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 6)
@@ -1385,10 +1507,10 @@ struct GlassTextField: View {
             .padding(.vertical, 7)
             .background(
                 RoundedRectangle(cornerRadius: 7)
-                    .fill(useGlassStyle
-                        ? AnyShapeStyle(.ultraThinMaterial)
-                        : AnyShapeStyle(colorScheme == .dark ? Color(white: 0.18) : Color(white: 0.93))
-                    )
+                    .fill(SettingsTheme.controlBackground(
+                        useGlassStyle: useGlassStyle,
+                        colorScheme: colorScheme
+                    ))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 7)
@@ -1420,10 +1542,10 @@ struct GlassButton: View {
             .padding(.vertical, 6)
             .background(
                 RoundedRectangle(cornerRadius: 6)
-                    .fill(useGlassStyle
-                        ? AnyShapeStyle(.ultraThinMaterial)
-                        : AnyShapeStyle(colorScheme == .dark ? Color(white: 0.18) : Color(white: 0.93))
-                    )
+                    .fill(SettingsTheme.controlBackground(
+                        useGlassStyle: useGlassStyle,
+                        colorScheme: colorScheme
+                    ))
                     .opacity(isHovering ? 1 : 0.6)
             )
             .overlay(
@@ -1459,10 +1581,10 @@ struct GlassIconButton: View {
                 .frame(width: size, height: size)
                 .background(
                     RoundedRectangle(cornerRadius: 5)
-                        .fill(useGlassStyle
-                            ? AnyShapeStyle(.ultraThinMaterial)
-                            : AnyShapeStyle(colorScheme == .dark ? Color(white: 0.18) : Color(white: 0.93))
-                        )
+                        .fill(SettingsTheme.controlBackground(
+                            useGlassStyle: useGlassStyle,
+                            colorScheme: colorScheme
+                        ))
                         .opacity(isHovering ? 1 : 0)
                 )
         }
@@ -1493,10 +1615,10 @@ struct GlassTokenButton: View {
                 .padding(.vertical, 3)
                 .background(
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(useGlassStyle
-                            ? AnyShapeStyle(.ultraThinMaterial)
-                            : AnyShapeStyle(colorScheme == .dark ? Color(white: 0.18) : Color(white: 0.93))
-                        )
+                        .fill(SettingsTheme.controlBackground(
+                            useGlassStyle: useGlassStyle,
+                            colorScheme: colorScheme
+                        ))
                         .opacity(isHovering ? 1 : 0.5)
                 )
                 .overlay(
@@ -1522,18 +1644,36 @@ struct GlassSidebarItem: View {
     let action: () -> Void
 
     @State private var isHovering = false
+    @Environment(\.useGlassStyle) private var useGlassStyle
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: 10) {
                 Image(systemName: icon)
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(isSelected ? .white : .secondary)
+                    .foregroundStyle(
+                        isSelected
+                            ? Color.white
+                            : SettingsTheme.secondaryTextColor(
+                                useGlassStyle: useGlassStyle,
+                                colorScheme: colorScheme
+                            )
+                    )
                     .frame(width: 20)
 
                 Text(label)
                     .font(.system(size: 12, weight: isSelected ? .semibold : .regular))
-                    .foregroundStyle(isSelected ? .white : (isHovering ? .primary : .secondary))
+                    .foregroundStyle(
+                        isSelected
+                            ? Color.white
+                            : (isHovering
+                                ? Color.primary
+                                : SettingsTheme.secondaryTextColor(
+                                    useGlassStyle: useGlassStyle,
+                                    colorScheme: colorScheme
+                                ))
+                    )
 
                 Spacer()
             }
@@ -1584,7 +1724,10 @@ struct GlassListItem: View {
                 if let subtitle {
                     Text(subtitle)
                         .font(.system(size: 9, weight: .medium))
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(SettingsTheme.tertiaryTextColor(
+                            useGlassStyle: useGlassStyle,
+                            colorScheme: colorScheme
+                        ))
                         .padding(.horizontal, 5)
                         .padding(.vertical, 2)
                         .background(
@@ -1597,10 +1740,10 @@ struct GlassListItem: View {
             .padding(.vertical, 7)
             .background(
                 RoundedRectangle(cornerRadius: 6)
-                    .fill(useGlassStyle
-                        ? AnyShapeStyle(.ultraThinMaterial)
-                        : AnyShapeStyle(colorScheme == .dark ? Color(white: 0.18) : Color(white: 0.93))
-                    )
+                    .fill(SettingsTheme.controlBackground(
+                        useGlassStyle: useGlassStyle,
+                        colorScheme: colorScheme
+                    ))
                     .opacity(isSelected ? 1 : (isHovering ? 0.5 : 0))
             )
             .overlay(
@@ -1769,10 +1912,10 @@ struct KeyCapView: View {
             .padding(.horizontal, 4)
             .background(
                 RoundedRectangle(cornerRadius: 5)
-                    .fill(useGlassStyle
-                        ? AnyShapeStyle(.ultraThinMaterial)
-                        : AnyShapeStyle(colorScheme == .dark ? Color(white: 0.18) : Color(white: 0.93))
-                    )
+                    .fill(SettingsTheme.controlBackground(
+                        useGlassStyle: useGlassStyle,
+                        colorScheme: colorScheme
+                    ))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 5)

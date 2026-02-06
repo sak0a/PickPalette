@@ -19,6 +19,8 @@ struct CanvasEditOverlay: View {
     @State private var dragStartX: CGFloat = 0
     @State private var dragStartY: CGFloat = 0
     @State private var isHovering = false
+    @Environment(\.useGlassStyle) private var useGlassStyle
+    @Environment(\.colorScheme) private var colorScheme
 
     // Resize state
     @State private var isResizing = false
@@ -32,6 +34,11 @@ struct CanvasEditOverlay: View {
     private var widgetY: CGFloat { config.y ?? 0 }
     private var widgetW: CGFloat { config.width ?? constraints.defaultWidth }
     private var widgetH: CGFloat { config.height ?? constraints.defaultHeight }
+    private var controlSurfaceStyle: AnyShapeStyle {
+        useGlassStyle
+            ? AnyShapeStyle(.ultraThinMaterial)
+            : AnyShapeStyle(colorScheme == .dark ? Color(white: 0.18) : Color(white: 0.93))
+    }
 
     /// Dynamic display name — copy buttons show their format name.
     private var displayName: String {
@@ -102,7 +109,7 @@ struct CanvasEditOverlay: View {
                 .padding(.vertical, 1)
                 .background(
                     Capsule()
-                        .fill(.ultraThinMaterial)
+                        .fill(controlSurfaceStyle)
                 )
                 .overlay(
                     Capsule()
@@ -162,7 +169,7 @@ struct CanvasEditOverlay: View {
                     .padding(.vertical, 1)
                     .background(
                         Capsule()
-                            .fill(.ultraThinMaterial)
+                            .fill(controlSurfaceStyle)
                     )
                     .overlay(
                         Capsule()
@@ -381,7 +388,7 @@ struct CanvasEditOverlay: View {
                 .frame(width: 10, height: 10)
                 .background(
                     RoundedRectangle(cornerRadius: 2)
-                        .fill(.ultraThinMaterial)
+                        .fill(controlSurfaceStyle)
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 2)
@@ -402,7 +409,7 @@ struct CanvasEditOverlay: View {
                 .frame(width: 10, height: 10)
                 .background(
                     RoundedRectangle(cornerRadius: 2)
-                        .fill(.ultraThinMaterial)
+                        .fill(controlSurfaceStyle)
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 2)

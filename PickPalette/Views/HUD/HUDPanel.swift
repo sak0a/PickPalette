@@ -6,12 +6,19 @@ final class HUDPanelController {
     private var panel: NSPanel?
     private var dismissTimer: Timer?
 
-    func show(color: ColorModel, formattedValue: String) {
+    func show(
+        color: ColorModel,
+        formattedValue: String,
+        useGlassStyle: Bool,
+        appearanceMode: AppearanceMode
+    ) {
         dismiss()
 
         let hudView = HUDContentView(
             color: color,
             formattedValue: formattedValue,
+            useGlassStyle: useGlassStyle,
+            appearanceMode: appearanceMode,
             onDismiss: { [weak self] in
                 self?.dismiss()
             }
@@ -84,7 +91,20 @@ final class HUDPanelController {
 struct HUDContentView: View {
     let color: ColorModel
     let formattedValue: String
+    let useGlassStyle: Bool
+    let appearanceMode: AppearanceMode
     let onDismiss: () -> Void
+
+    private var isDarkAppearance: Bool {
+        switch appearanceMode {
+        case .dark:
+            return true
+        case .light:
+            return false
+        case .system:
+            return NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        }
+    }
 
     var body: some View {
         HStack(spacing: 12) {
@@ -103,7 +123,7 @@ struct HUDContentView: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(formattedValue)
                     .font(.system(size: 13, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(isDarkAppearance ? .white : .primary)
                     .lineLimit(1)
 
                 HStack(spacing: 4) {
@@ -113,7 +133,7 @@ struct HUDContentView: View {
                         .shadow(color: .green.opacity(0.4), radius: 4)
                     Text("Copied to Clipboard")
                         .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.55))
+                        .foregroundStyle(isDarkAppearance ? .white.opacity(0.55) : .secondary)
                         .lineLimit(1)
                         .fixedSize()
                 }
@@ -127,15 +147,23 @@ struct HUDContentView: View {
         .background(
             ZStack {
                 RoundedRectangle(cornerRadius: 14)
-                    .fill(.black.opacity(0.5))
+                    .fill(
+                        useGlassStyle
+                            ? AnyShapeStyle(isDarkAppearance ? .black.opacity(0.5) : .white.opacity(0.7))
+                            : AnyShapeStyle(isDarkAppearance ? Color(white: 0.14) : Color(white: 0.96))
+                    )
+
+                if useGlassStyle {
+                    RoundedRectangle(cornerRadius: 14)
+                        .fill(.ultraThinMaterial)
+                        .opacity(isDarkAppearance ? 0.4 : 0.55)
+                }
 
                 RoundedRectangle(cornerRadius: 14)
-                    .fill(.ultraThinMaterial)
-                    .opacity(0.4)
-                    .environment(\.colorScheme, .dark)
-
-                RoundedRectangle(cornerRadius: 14)
-                    .strokeBorder(.white.opacity(0.12), lineWidth: 0.5)
+                    .strokeBorder(
+                        isDarkAppearance ? .white.opacity(0.12) : .black.opacity(0.08),
+                        lineWidth: 0.5
+                    )
             }
         )
         .clipShape(RoundedRectangle(cornerRadius: 14))

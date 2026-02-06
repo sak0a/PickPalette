@@ -37,6 +37,7 @@ struct RecentColorSwatch: View {
     let action: () -> Void
 
     @State private var isHovering = false
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         Circle()
@@ -44,7 +45,12 @@ struct RecentColorSwatch: View {
             .frame(width: isSelected ? 22 : 18, height: isSelected ? 22 : 18)
             .overlay(
                 Circle()
-                    .strokeBorder(.white.opacity(isSelected ? 0.6 : 0.2), lineWidth: isSelected ? 2 : 0.5)
+                    .strokeBorder(
+                        colorScheme == .dark
+                            ? .white.opacity(isSelected ? 0.6 : 0.2)
+                            : .black.opacity(isSelected ? 0.24 : 0.10),
+                        lineWidth: isSelected ? 2 : 0.5
+                    )
             )
             .shadow(color: isHovering ? color.color.opacity(0.4) : .clear, radius: 4)
             .scaleEffect(isHovering ? 1.15 : 1.0)
