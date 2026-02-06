@@ -1,0 +1,53 @@
+# Swift Package Manager
+.build/
+Package.resolved
+
+# Xcode specific files
+*.xcworkspace
+xcuserdata/
+*.xcscheme
+
+# User-specific files
+*.xcuserdatad/
+*.xcuserstate
+
+# Build directories
+DerivedData/
+build/
+
+# Archives
+*.ipa
+*.app
+*.dSYM
+
+# CocoaPods
+Pods/
+
+# Carthage
+Carthage/Build/
+
+# SwiftPM
+.swiftpm/xcode/package.xcworkspace/
+
+# Snapshots
+*.swp
+*.swo
+
+# Swift documentation
+docs/
+
+# Temporary files
+*.tmp
+*.temp
+
+# macOS specific
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Thumbnails
+*.ctb
+
+# Logs & databases
+*.log
+*.sqlite

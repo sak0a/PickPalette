@@ -1,17 +1,14 @@
-//
-//  PickPaletteApp.swift
-//  PickPalette
-//
-//  Created by Laurin Frank on 06.02.26.
-//
-
 import SwiftUI
 
 @main
 struct PickPaletteApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+
     var body: some Scene {
-        WindowGroup {
-            ContentView()
+        // Menu bar app — no main window.
+        // The popover and settings are managed by the AppDelegate.
+        Settings {
+            EmptyView()
         }
     }
 }
