@@ -8,9 +8,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private let appState = AppState()
     private let hudController = HUDPanelController()
     private var settingsWindow: NSWindow?
+    private var editorWindow: NSWindow?
     private var eventMonitor: Any?
     private var statusMenu: NSMenu!
     private var eyedropperController: EyedropperController?
+    private var windowCloseObserver: Any?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         appState.load()
@@ -23,6 +25,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
         // Apply appearance
         NSApp.appearance = appState.appearance.nsAppearance
+
+        // Listen for layout editor notification from Settings
+        NotificationCenter.default.addObserver(
+            forName: .openLayoutEditor,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.openLayoutEditor()
+        }
+
+        // Observe window close to hide Dock icon when all windows are closed
+        windowCloseObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let self,
+                  let closingWindow = notification.object as? NSWindow,
+                  closingWindow === self.settingsWindow || closingWindow === self.editorWindow else { return }
+            // Check after a short delay so the window state is updated
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                self.checkAndHideDock()
+            }
+        }
 
         // Check accessibility on first launch
         if !AccessibilityHelper.isTrusted {
@@ -115,8 +141,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
                     self?.pickColor()
                 }
+            },
+            onEditLayout: { [weak self] in
+                self?.popover.close()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                    self?.openLayoutEditor()
+                }
             }
         )
+            .environment(\.useGlassStyle, appState.useGlassStyle)
         popover.contentViewController = NSHostingController(rootView: contentView)
     }
 
@@ -207,6 +240,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             return
         }
 
+        // Show app in Dock when a window is open
+        showInDock()
+
         let settingsView = SettingsView(appState: appState)
         let hostingController = NSHostingController(rootView: settingsView)
 
@@ -225,11 +261,64 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         self.settingsWindow = window
     }
 
+    // MARK: - Layout Editor Window
+
+    private func openLayoutEditor() {
+        if let window = editorWindow, window.isVisible {
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
+        // Show app in Dock when a window is open
+        showInDock()
+
+        let editorView = LayoutEditorView(appState: appState) { [weak self] in
+            self?.editorWindow?.close()
+        }
+            .environment(\.useGlassStyle, appState.useGlassStyle)
+        let hostingController = NSHostingController(rootView: editorView)
+
+        let window = NSWindow(contentViewController: hostingController)
+        window.title = "Edit Layout"
+        window.styleMask = [.titled, .closable, .resizable, .fullSizeContentView]
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+        window.backgroundColor = NSColor.windowBackgroundColor
+        window.setContentSize(NSSize(width: 800, height: 650))
+        window.minSize = NSSize(width: 600, height: 400)
+        window.center()
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+
+        window.isReleasedWhenClosed = false
+        self.editorWindow = window
+    }
+
+    // MARK: - Dock Visibility
+
+    /// Shows the app icon in the Dock (switches from accessory to regular).
+    private func showInDock() {
+        NSApp.setActivationPolicy(.regular)
+    }
+
+    /// Hides the app from the Dock if no windows are visible (switches back to accessory).
+    private func checkAndHideDock() {
+        let settingsVisible = settingsWindow?.isVisible ?? false
+        let editorVisible = editorWindow?.isVisible ?? false
+        if !settingsVisible && !editorVisible {
+            NSApp.setActivationPolicy(.accessory)
+        }
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         appState.save()
         GlobalHotkeyManager.shared.unregister()
         if let monitor = eventMonitor {
             NSEvent.removeMonitor(monitor)
+        }
+        if let observer = windowCloseObserver {
+            NotificationCenter.default.removeObserver(observer)
         }
     }
 }

@@ -13,6 +13,7 @@ struct GradientSliderView: View {
     private let thumbSize: CGFloat = 16
 
     @State private var isDragging = false
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         HStack(spacing: 8) {
@@ -51,7 +52,7 @@ struct GradientSliderView: View {
 
                     // Glass border on track
                     Capsule()
-                        .strokeBorder(.white.opacity(0.15), lineWidth: 0.5)
+                        .strokeBorder(colorScheme == .dark ? .white.opacity(0.15) : .black.opacity(0.10), lineWidth: 0.5)
                         .frame(height: trackHeight)
 
                     // Thumb
@@ -84,17 +85,11 @@ struct GradientSliderView: View {
             }
             .frame(height: thumbSize + 4)
 
-            // Numeric display — glass pill
+            // Numeric display — compact, no background
             Text(displayValue)
-                .font(.system(size: 10, weight: .medium, design: .monospaced))
-                .foregroundStyle(.secondary)
-                .frame(width: 38, alignment: .trailing)
-                .padding(.horizontal, 4)
-                .padding(.vertical, 2)
-                .background(
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(.ultraThinMaterial)
-                )
+                .font(.system(size: 9, weight: .medium, design: .monospaced))
+                .foregroundStyle(.tertiary)
+                .fixedSize()
         }
         .frame(height: 22)
     }

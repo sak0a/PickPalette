@@ -1,71 +1,35 @@
 import SwiftUI
 
-/// Main popover content with macOS Tahoe glass aesthetic.
+/// Main popover content — thin shell wrapping the widget canvas.
 struct PopoverContentView: View {
     @Bindable var appState: AppState
     var onOpenSettings: () -> Void = {}
     var onEyedropper: () -> Void = {}
+    var onEditLayout: () -> Void = {}
 
-    @State private var hexFieldText: String = ""
-    @State private var isEditingHex: Bool = false
-    @FocusState private var hexFieldFocused: Bool
     @State private var showOnboarding: Bool = false
-
-    private var popoverWidth: CGFloat {
-        appState.popoverLayout == .horizontal ? 420 : 280
-    }
-
-    // Horizontal layout dimensions
-    private var horizontalSpectrumSize: CGFloat { 106 }
-
-    // Whether any middle content (spectrum, sliders, recent) is visible
-    private var hasMiddleContent: Bool {
-        !appState.compactMode && (appState.showSpectrumPicker || appState.showSliders || appState.showRecentColors)
-    }
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
-            headerRow
-                .padding(.horizontal, 14)
-                .padding(.top, 14)
-                .padding(.bottom, 10)
-
-            if hasMiddleContent {
-                // Top divider — only when middle content is visible
-                Divider()
-                    .opacity(0.5)
-                    .padding(.horizontal, 10)
-
-                // Layout-dependent middle section
-                if appState.popoverLayout == .horizontal {
-                    horizontalContent
-                } else {
-                    verticalContent
-                }
-
-                // Bottom divider — only after middle content
-                Divider()
-                    .opacity(0.5)
-                    .padding(.horizontal, 10)
-                    .padding(.top, 8)
-            }
-
-            // Bottom toolbar
-            bottomToolbar
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
+            WidgetCanvasView(
+                appState: appState,
+                onOpenSettings: onOpenSettings,
+                onEyedropper: onEyedropper
+            )
         }
-        .frame(width: popoverWidth)
-        .animation(.spring(duration: 0.3), value: appState.compactMode)
-        .animation(.spring(duration: 0.3), value: appState.popoverLayout)
-        .onChange(of: appState.currentColor) { _, _ in
-            if !hexFieldFocused {
-                hexFieldText = appState.currentColor.hexString
+        .frame(
+            width: appState.layoutConfig.containerWidth,
+            height: appState.layoutConfig.containerHeight
+        )
+        .contextMenu {
+            Button {
+                onEditLayout()
+            } label: {
+                Label("Edit Layout", systemImage: "rectangle.3.group")
             }
         }
         .onAppear {
-            hexFieldText = appState.currentColor.hexString
             showOnboarding = !UserDefaults.standard.bool(forKey: "hasSeenOnboarding")
         }
         .overlay {
@@ -85,173 +49,7 @@ struct PopoverContentView: View {
         }
         .animation(.spring(duration: 0.3), value: appState.showCopiedFeedback)
         .animation(.spring(duration: 0.3), value: showOnboarding)
-    }
-
-    // MARK: - Header
-
-    private var headerRow: some View {
-        HStack(spacing: 12) {
-            // Color swatch with glass ring
-            if appState.showColorSwatch {
-                ZStack {
-                    Circle()
-                        .fill(.ultraThinMaterial)
-                        .frame(width: 52, height: 52)
-
-                    Circle()
-                        .fill(appState.currentColor.color)
-                        .frame(width: 44, height: 44)
-                        .overlay(
-                            Circle()
-                                .strokeBorder(.white.opacity(0.3), lineWidth: 1)
-                        )
-                }
-                .shadow(color: appState.currentColor.color.opacity(0.3), radius: 6, y: 2)
-            }
-
-            VStack(alignment: .leading, spacing: 5) {
-                // Color space picker — custom glass segmented control
-                if appState.showColorSpaceTabs {
-                    GlassSegmentedControl(
-                        selection: $appState.activeColorSpace,
-                        options: [
-                            (ColorSpaceGroup.hsl, "HSL"),
-                            (ColorSpaceGroup.hsb, "HSB"),
-                            (ColorSpaceGroup.rgb, "RGB")
-                        ]
-                    )
-                }
-
-                // Hex field
-                if appState.showHexField {
-                    HStack(spacing: 4) {
-                        Image(systemName: "number")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(.tertiary)
-
-                        TextField("FFFFFF", text: $hexFieldText, onEditingChanged: { editing in
-                            isEditingHex = editing
-                        }, onCommit: {
-                            if let color = ColorModel.fromHex(hexFieldText) {
-                                appState.currentColor = color
-                            } else {
-                                hexFieldText = appState.currentColor.hexString
-                            }
-                            isEditingHex = false
-                        })
-                        .focused($hexFieldFocused)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 13, weight: .medium, design: .monospaced))
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(
-                        RoundedRectangle(cornerRadius: 6)
-                            .fill(.ultraThinMaterial)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6)
-                            .strokeBorder(.primary.opacity(0.08), lineWidth: 1)
-                    )
-                }
-            }
-
-            Spacer(minLength: 0)
-        }
-    }
-
-    // MARK: - Vertical Content (default)
-
-    @ViewBuilder
-    private var verticalContent: some View {
-        // Color picker area
-        if appState.showSpectrumPicker {
-            SpectrumPickerView(
-                appState: appState,
-                width: popoverWidth - 28,
-                height: 170
-            )
-            .padding(.horizontal, 14)
-            .padding(.top, 10)
-        }
-
-        // Channel sliders
-        if appState.showSliders {
-            ColorSlidersView(appState: appState)
-                .padding(.horizontal, 14)
-                .padding(.top, 10)
-        }
-
-        // Recent colors
-        if appState.showRecentColors {
-            RecentColorsView(appState: appState)
-                .padding(.horizontal, 14)
-                .padding(.top, 8)
-        }
-    }
-
-    // MARK: - Horizontal Content
-
-    @ViewBuilder
-    private var horizontalContent: some View {
-        HStack(alignment: .top, spacing: 14) {
-            // Left: square spectrum picker
-            if appState.showSpectrumPicker {
-                SpectrumPickerView(
-                    appState: appState,
-                    width: horizontalSpectrumSize,
-                    height: horizontalSpectrumSize
-                )
-            }
-
-            // Right: stacked sliders
-            if appState.showSliders {
-                ColorSlidersView(appState: appState)
-                    .frame(maxWidth: .infinity)
-            }
-        }
-        .padding(.horizontal, 14)
-        .padding(.top, 10)
-
-        // Recent colors full-width below
-        if appState.showRecentColors {
-            RecentColorsView(appState: appState)
-                .padding(.horizontal, 14)
-                .padding(.top, 8)
-        }
-    }
-
-    // MARK: - Bottom Toolbar
-
-    private var bottomToolbar: some View {
-        HStack(spacing: 6) {
-            // Eyedropper button
-            ToolbarButton(icon: "eyedropper", tooltip: "Pick color from screen") {
-                onEyedropper()
-            }
-
-            Spacer()
-
-            // Copy button 1
-            CopyFormatButton(format: appState.copyButton1Format) {
-                appState.copyColor(format: appState.copyButton1Format)
-                appState.addToRecent(appState.currentColor)
-            }
-
-            // Copy button 2
-            CopyFormatButton(format: appState.copyButton2Format) {
-                appState.copyColor(format: appState.copyButton2Format)
-                appState.addToRecent(appState.currentColor)
-            }
-
-            Spacer()
-
-            // Settings button — gear icon
-            ToolbarButton(icon: "gearshape", tooltip: "Settings") {
-                onOpenSettings()
-            }
-        }
+        .animation(.spring(duration: 0.3), value: appState.layoutConfig)
     }
 
     // MARK: - Copied Banner
@@ -273,13 +71,13 @@ struct PopoverContentView: View {
             .background(
                 ZStack {
                     Capsule()
-                        .fill(.black.opacity(0.55))
+                        .fill(colorScheme == .dark ? .black.opacity(0.55) : .white.opacity(0.75))
                     Capsule()
-                        .strokeBorder(.white.opacity(0.12), lineWidth: 0.5)
+                        .strokeBorder(colorScheme == .dark ? .white.opacity(0.12) : .black.opacity(0.08), lineWidth: 0.5)
                 }
             )
             .shadow(color: .black.opacity(0.2), radius: 12, y: 4)
-            .padding(.bottom, 50)
+            .padding(.bottom, 16)
         }
     }
 }
@@ -292,6 +90,8 @@ struct ToolbarButton: View {
     let action: () -> Void
 
     @State private var isHovering = false
+    @Environment(\.useGlassStyle) private var useGlassStyle
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         Button(action: action) {
@@ -301,7 +101,10 @@ struct ToolbarButton: View {
                 .frame(width: 28, height: 28)
                 .background(
                     RoundedRectangle(cornerRadius: 6)
-                        .fill(.ultraThinMaterial)
+                        .fill(useGlassStyle
+                            ? AnyShapeStyle(.ultraThinMaterial)
+                            : AnyShapeStyle(colorScheme == .dark ? Color(white: 0.18) : Color(white: 0.93))
+                        )
                         .opacity(isHovering ? 1 : 0)
                 )
                 .contentShape(Rectangle())
@@ -323,6 +126,8 @@ struct CopyFormatButton: View {
     let action: () -> Void
 
     @State private var isHovering = false
+    @Environment(\.useGlassStyle) private var useGlassStyle
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         Button(action: action) {
@@ -337,7 +142,10 @@ struct CopyFormatButton: View {
             .padding(.vertical, 6)
             .background(
                 RoundedRectangle(cornerRadius: 6)
-                    .fill(.ultraThinMaterial)
+                    .fill(useGlassStyle
+                        ? AnyShapeStyle(.ultraThinMaterial)
+                        : AnyShapeStyle(colorScheme == .dark ? Color(white: 0.18) : Color(white: 0.93))
+                    )
                     .opacity(isHovering ? 1 : 0)
             )
             .contentShape(RoundedRectangle(cornerRadius: 6))
@@ -370,30 +178,30 @@ struct GlassSegmentedControl<T: Hashable>: View {
                     }
                 } label: {
                     Text(option.1)
-                        .font(.system(size: 11, weight: isSelected ? .bold : .medium))
+                        .font(.system(size: 10, weight: isSelected ? .bold : .medium))
                         .foregroundStyle(isSelected ? .white : .secondary)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 5)
+                        .padding(.vertical, 3)
                         .background {
                             if isSelected {
-                                RoundedRectangle(cornerRadius: 5)
+                                RoundedRectangle(cornerRadius: 4)
                                     .fill(Color.accentColor.gradient)
                                     .shadow(color: Color.accentColor.opacity(0.35), radius: 4, y: 1)
                                     .matchedGeometryEffect(id: "segment", in: segmentNamespace)
                             }
                         }
-                        .contentShape(RoundedRectangle(cornerRadius: 5))
+                        .contentShape(RoundedRectangle(cornerRadius: 4))
                 }
                 .buttonStyle(.plain)
             }
         }
-        .padding(2.5)
+        .padding(2)
         .background(
-            RoundedRectangle(cornerRadius: 7)
+            RoundedRectangle(cornerRadius: 6)
                 .fill(.primary.opacity(0.06))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 7)
+            RoundedRectangle(cornerRadius: 6)
                 .strokeBorder(.primary.opacity(0.06), lineWidth: 0.5)
         )
     }

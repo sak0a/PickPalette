@@ -19,6 +19,9 @@ struct SpectrumPickerView: View {
                 HSLSquarePickerView(appState: appState, width: width, height: height)
             case .hsb:
                 HSBSquarePickerView(appState: appState, width: width, height: height)
+            case .cmyk:
+                ColorWheelView(appState: appState, diameter: min(width, height))
+                    .frame(width: width, height: height)
             default:
                 HSLSquarePickerView(appState: appState, width: width, height: height)
             }

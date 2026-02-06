@@ -8,15 +8,21 @@ import Carbon
 enum SettingsTab: String, CaseIterable, Hashable {
     case general
     case appearance
+    case layout
     case formats
     case palettes
+    case shortcuts
+    case license
 
     var label: String {
         switch self {
         case .general: return "General"
         case .appearance: return "Appearance"
+        case .layout: return "Layout"
         case .formats: return "Formats"
         case .palettes: return "Palettes"
+        case .shortcuts: return "Shortcuts"
+        case .license: return "License"
         }
     }
 
@@ -24,8 +30,11 @@ enum SettingsTab: String, CaseIterable, Hashable {
         switch self {
         case .general: return "gearshape"
         case .appearance: return "paintbrush"
+        case .layout: return "rectangle.3.group"
         case .formats: return "textformat"
         case .palettes: return "paintpalette"
+        case .shortcuts: return "keyboard"
+        case .license: return "doc.text"
         }
     }
 }
@@ -62,6 +71,12 @@ struct SettingsView: View {
                             insertion: .opacity.combined(with: .offset(x: 8)),
                             removal: .opacity
                         ))
+                case .layout:
+                    LayoutSettingsView(appState: appState)
+                        .transition(.asymmetric(
+                            insertion: .opacity.combined(with: .offset(x: 8)),
+                            removal: .opacity
+                        ))
                 case .formats:
                     FormatsSettingsView(appState: appState)
                         .transition(.asymmetric(
@@ -74,17 +89,31 @@ struct SettingsView: View {
                             insertion: .opacity.combined(with: .offset(x: 8)),
                             removal: .opacity
                         ))
+                case .shortcuts:
+                    ShortcutsSettingsView(appState: appState)
+                        .transition(.asymmetric(
+                            insertion: .opacity.combined(with: .offset(x: 8)),
+                            removal: .opacity
+                        ))
+                case .license:
+                    LicenseSettingsView()
+                        .transition(.asymmetric(
+                            insertion: .opacity.combined(with: .offset(x: 8)),
+                            removal: .opacity
+                        ))
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .animation(.spring(duration: 0.3, bounce: 0.1), value: selectedTab)
         }
         .frame(width: 600, height: 480)
+        .environment(\.useGlassStyle, appState.useGlassStyle)
     }
 
     // MARK: - Sidebar
 
     @Namespace private var sidebarNamespace
+    @Environment(\.colorScheme) private var colorScheme
 
     private var settingsSidebar: some View {
         VStack(spacing: 4) {
@@ -119,7 +148,11 @@ struct SettingsView: View {
                 .padding(.bottom, 12)
         }
         .padding(.horizontal, 8)
-        .background(.ultraThinMaterial.opacity(0.5))
+        .background(
+            appState.useGlassStyle
+                ? AnyShapeStyle(.ultraThinMaterial.opacity(0.5))
+                : AnyShapeStyle(colorScheme == .dark ? Color(white: 0.12) : Color(white: 0.94))
+        )
     }
 }
 
@@ -140,22 +173,11 @@ struct GeneralSettingsView: View {
                             selection: $appState.defaultFormatID,
                             options: appState.formats.map { ($0.id, $0.name) }
                         )
-
-                        GlassPicker(
-                            label: "Appearance",
-                            selection: $appState.appearance,
-                            options: AppearanceMode.allCases.map { ($0, $0.displayName) }
-                        )
                     }
                 }
 
                 GlassSection(title: "Behavior") {
                     VStack(spacing: 12) {
-                        GlassToggle(
-                            label: "Compact Mode",
-                            isOn: $appState.compactMode
-                        )
-
                         GlassToggle(
                             label: "Show HUD after picking color",
                             isOn: $appState.showHUDAfterPick
@@ -180,10 +202,6 @@ struct GeneralSettingsView: View {
                             )
                         )
                     }
-                }
-
-                GlassSection(title: "Keyboard Shortcut") {
-                    ShortcutRecorderRow(appState: appState)
                 }
 
                 GlassSection(title: "Permissions") {
@@ -243,6 +261,8 @@ struct PermissionRow: View {
     let onOpenSettings: () -> Void
 
     @State private var isHovering = false
+    @Environment(\.useGlassStyle) private var useGlassStyle
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         HStack(spacing: 10) {
@@ -277,7 +297,10 @@ struct PermissionRow: View {
                         .padding(.vertical, 4)
                         .background(
                             RoundedRectangle(cornerRadius: 5)
-                                .fill(.ultraThinMaterial)
+                                .fill(useGlassStyle
+                                    ? AnyShapeStyle(.ultraThinMaterial)
+                                    : AnyShapeStyle(colorScheme == .dark ? Color(white: 0.18) : Color(white: 0.93))
+                                )
                                 .opacity(isHovering ? 1 : 0.6)
                         )
                         .overlay(
@@ -304,64 +327,403 @@ struct AppearanceSettingsView: View {
     var body: some View {
         ScrollView(.vertical) {
             VStack(spacing: 16) {
-                GlassSection(title: "Layout") {
-                    GlassToggle(
-                        label: "Horizontal Layout",
-                        isOn: Binding(
-                            get: { appState.popoverLayout == .horizontal },
-                            set: { appState.popoverLayout = $0 ? .horizontal : .vertical }
+                GlassSection(title: "Theme") {
+                    VStack(spacing: 12) {
+                        GlassPicker(
+                            label: "Appearance",
+                            selection: $appState.appearance,
+                            options: AppearanceMode.allCases.map { ($0, $0.displayName) }
                         )
+
+                        GlassToggle(
+                            label: "Glass Style",
+                            isOn: Binding(
+                                get: { appState.useGlassStyle },
+                                set: { newValue in
+                                    appState.useGlassStyle = newValue
+                                    appState.save()
+                                }
+                            )
+                        )
+
+                        Text("Use translucent glass materials for backgrounds. Disable for solid fill colors.")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+
+                GlassSection(title: "Color Space Tabs") {
+                    VStack(spacing: 8) {
+                        Text("Choose which color spaces appear in the popover tabs.")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.tertiary)
+
+                        VStack(spacing: 8) {
+                            ForEach([ColorSpaceGroup.hsl, .hsb, .rgb, .cmyk], id: \.self) { space in
+                                let isEnabled = appState.enabledColorSpaces.contains(space)
+                                let isLast = appState.enabledColorSpaces.count == 1 && isEnabled
+                                GlassToggle(
+                                    label: space.displayName,
+                                    isOn: Binding(
+                                        get: { isEnabled },
+                                        set: { newValue in
+                                            if newValue {
+                                                if !appState.enabledColorSpaces.contains(space) {
+                                                    appState.enabledColorSpaces.append(space)
+                                                }
+                                            } else {
+                                                // Don't allow removing the last one
+                                                guard appState.enabledColorSpaces.count > 1 else { return }
+                                                appState.enabledColorSpaces.removeAll { $0 == space }
+                                                // If active space was removed, switch to first enabled
+                                                if appState.activeColorSpace == space {
+                                                    appState.activeColorSpace = appState.enabledColorSpaces.first ?? .rgb
+                                                }
+                                            }
+                                            appState.save()
+                                        }
+                                    )
+                                )
+                                .opacity(isLast ? 0.5 : 1.0)
+                            }
+                        }
+                    }
+                }
+
+                GlassSection(title: "Info") {
+                    Text("Copy button formats are now configured per-widget in the Layout tab or in Edit Mode (right-click the popover).")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 12)
+            .padding(.bottom, 20)
+        }
+        .onChange(of: appState.appearance) { _, newValue in
+            NSApp.appearance = newValue.nsAppearance
+            appState.save()
+        }
+    }
+}
+
+// MARK: - Layout Settings
+
+struct LayoutSettingsView: View {
+    @Bindable var appState: AppState
+
+    var body: some View {
+        ScrollView(.vertical) {
+            VStack(spacing: 16) {
+                // Open Editor button (prominent)
+                GlassSection(title: "Canvas Editor") {
+                    VStack(spacing: 8) {
+                        Text("Use the layout editor to freely position and resize widgets on a canvas. Right-click the popover to open it.")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.tertiary)
+
+                        HStack {
+                            GlassButton(icon: "rectangle.3.group", label: "Open Layout Editor") {
+                                NotificationCenter.default.post(name: .openLayoutEditor, object: nil)
+                            }
+                            Spacer()
+                        }
+                    }
+                }
+
+                // Presets
+                GlassSection(title: "Presets") {
+                    HStack(spacing: 8) {
+                        ForEach(PopoverLayoutConfig.presets, id: \.name) { preset in
+                            let isActive = appState.layoutConfig.name == preset.name
+                                && appState.layoutConfig.containerWidth == preset.containerWidth
+
+                            Button {
+                                withAnimation(.spring(duration: 0.3)) {
+                                    appState.layoutConfig = preset
+                                    appState.save()
+                                }
+                            } label: {
+                                VStack(spacing: 6) {
+                                    Image(systemName: presetIcon(for: preset.name))
+                                        .font(.system(size: 16, weight: .medium))
+                                    Text(preset.name)
+                                        .font(.system(size: 11, weight: .medium))
+                                }
+                                .foregroundStyle(isActive ? .white : .secondary)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .fill(isActive ? Color.accentColor.gradient : Color.primary.opacity(0.04).gradient)
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .strokeBorder(isActive ? Color.clear : Color.primary.opacity(0.06), lineWidth: 0.5)
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+
+                // Container size
+                GlassSection(title: "Container Size") {
+                    VStack(spacing: 10) {
+                        HStack(spacing: 10) {
+                            Text("Width")
+                                .font(.system(size: 12))
+
+                            Slider(
+                                value: $appState.layoutConfig.containerWidth,
+                                in: 200...600,
+                                step: 5
+                            )
+
+                            Text("\(Int(appState.layoutConfig.containerWidth))pt")
+                                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 42, alignment: .trailing)
+                        }
+
+                        HStack(spacing: 10) {
+                            Text("Height")
+                                .font(.system(size: 12))
+
+                            Slider(
+                                value: $appState.layoutConfig.containerHeight,
+                                in: 100...800,
+                                step: 5
+                            )
+
+                            Text("\(Int(appState.layoutConfig.containerHeight))pt")
+                                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 42, alignment: .trailing)
+                        }
+                    }
+                }
+
+                // Widgets list (simplified: name, eye toggle, format picker, delete)
+                GlassSection(title: "Widgets") {
+                    VStack(spacing: 2) {
+                        ForEach(Array(appState.layoutConfig.widgets.enumerated()), id: \.element.id) { index, widget in
+                            widgetRow(widget, at: index)
+                        }
+                    }
+
+                    // Add widget
+                    addWidgetRow
+                }
+
+                // Reset
+                GlassSection(title: "Reset") {
+                    HStack {
+                        GlassButton(icon: "arrow.counterclockwise", label: "Reset to Default") {
+                            withAnimation(.spring(duration: 0.3)) {
+                                appState.layoutConfig = .verticalPreset
+                                appState.save()
+                            }
+                        }
+                        Spacer()
+                    }
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 12)
+            .padding(.bottom, 20)
+        }
+    }
+
+    // MARK: - Widget Row
+
+    @ViewBuilder
+    private func widgetRow(_ widget: WidgetConfig, at index: Int) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: widget.widgetType.icon)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(widget.isEnabled ? .primary : .tertiary)
+                .frame(width: 18)
+
+            Text(widgetDisplayName(widget))
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(widget.isEnabled ? .primary : .tertiary)
+
+            Spacer()
+
+            // Format picker (copy buttons only)
+            if widget.widgetType == .copyButton {
+                widgetFormatPicker(widget, at: index)
+            }
+
+            // Eye toggle
+            Button {
+                appState.layoutConfig.widgets[index].isEnabled.toggle()
+                appState.save()
+            } label: {
+                Image(systemName: widget.isEnabled ? "eye" : "eye.slash")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(widget.isEnabled ? Color.secondary : Color.orange)
+                    .frame(width: 22, height: 22)
+            }
+            .buttonStyle(.plain)
+
+            // Delete
+            Button {
+                withAnimation(.spring(duration: 0.2)) {
+                    appState.layoutConfig.widgets.remove(at: index)
+                    appState.save()
+                }
+            } label: {
+                Image(systemName: "xmark.circle")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.red.opacity(0.6))
+                    .frame(width: 22, height: 22)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(.primary.opacity(0.02))
+        )
+    }
+
+    private func widgetDisplayName(_ widget: WidgetConfig) -> String {
+        if widget.widgetType == .copyButton {
+            let name = appState.formats.first(where: { $0.id == widget.formatID })?.name ?? "HEX"
+            return "Copy \(name)"
+        }
+        return widget.widgetType.displayName
+    }
+
+    private func widgetFormatPicker(_ widget: WidgetConfig, at index: Int) -> some View {
+        Menu {
+            ForEach(appState.formats) { format in
+                Button {
+                    appState.layoutConfig.widgets[index].formatID = format.id
+                    appState.save()
+                } label: {
+                    HStack {
+                        Text(format.name)
+                        if widget.formatID == format.id {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            }
+        } label: {
+            Image(systemName: "textformat")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
+                .frame(width: 22, height: 22)
+                .background(
+                    RoundedRectangle(cornerRadius: 5)
+                        .fill(.primary.opacity(0.04))
+                )
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+    }
+
+    // MARK: - Add Widget
+
+    private var addWidgetRow: some View {
+        let existingTypes = Set(appState.layoutConfig.widgets.map(\.widgetType))
+        let available = WidgetType.allCases.filter { $0.allowsMultipleInstances || !existingTypes.contains($0) }
+
+        return Menu {
+            ForEach(available) { type in
+                Button {
+                    withAnimation(.spring(duration: 0.2)) {
+                        let constraints = WidgetSizeConstraints.constraints(for: type)
+                        let w = constraints.defaultWidth
+                        let h = constraints.defaultHeight
+                        let containerW = appState.layoutConfig.containerWidth
+                        let containerH = appState.layoutConfig.containerHeight
+                        let x = max(0, (containerW - w) / 2)
+                        let y = max(0, (containerH - h) / 2)
+
+                        var config = WidgetConfig(widgetType: type, x: x, y: y, width: w, height: h)
+                        if type == .copyButton {
+                            config = WidgetConfig(widgetType: type, formatID: ColorFormat.hexFormat.id, x: x, y: y, width: w, height: h)
+                        }
+                        appState.layoutConfig.widgets.append(config)
+                        appState.save()
+                    }
+                } label: {
+                    Label(type.displayName, systemImage: type.icon)
+                }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "plus.circle")
+                    .font(.system(size: 11, weight: .medium))
+                Text("Add Widget")
+                    .font(.system(size: 11, weight: .medium))
+            }
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .strokeBorder(
+                        Color.primary.opacity(0.08),
+                        style: StrokeStyle(lineWidth: 1, dash: [4, 3])
                     )
+            )
+        }
+        .menuStyle(.borderlessButton)
+    }
+
+    // MARK: - Helpers
+
+    private func presetIcon(for name: String) -> String {
+        switch name {
+        case "Vertical": return "rectangle.portrait"
+        case "Horizontal": return "rectangle"
+        case "Compact": return "rectangle.compress.vertical"
+        default: return "rectangle.3.group"
+        }
+    }
+}
+
+// MARK: - Shortcuts Settings
+
+struct ShortcutsSettingsView: View {
+    @Bindable var appState: AppState
+
+    var body: some View {
+        ScrollView(.vertical) {
+            VStack(spacing: 16) {
+                GlassSection(title: "Eyedropper") {
+                    ShortcutRecorderRow(appState: appState)
                 }
 
-                GlassSection(title: "Quick Copy Buttons") {
-                    VStack(spacing: 12) {
-                        GlassPicker(
-                            label: "Button 1",
-                            selection: $appState.copyButton1FormatID,
-                            options: appState.formats.map { ($0.id, $0.name) }
-                        )
-
-                        GlassPicker(
-                            label: "Button 2",
-                            selection: $appState.copyButton2FormatID,
-                            options: appState.formats.map { ($0.id, $0.name) }
-                        )
-                    }
+                GlassSection(title: "Coming Soon") {
+                    Text("Per-format copy shortcuts will be available here in a future update.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.tertiary)
                 }
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 12)
+            .padding(.bottom, 20)
+        }
+    }
+}
 
-                GlassSection(title: "Popover Elements") {
-                    VStack(spacing: 12) {
-                        GlassToggle(
-                            label: "Color Preview",
-                            isOn: $appState.showColorSwatch
-                        )
+// MARK: - License Settings
 
-                        GlassToggle(
-                            label: "Color Space Tabs",
-                            isOn: $appState.showColorSpaceTabs
-                        )
-
-                        GlassToggle(
-                            label: "Hex Input Field",
-                            isOn: $appState.showHexField
-                        )
-
-                        GlassToggle(
-                            label: "Spectrum Picker",
-                            isOn: $appState.showSpectrumPicker
-                        )
-
-                        GlassToggle(
-                            label: "Channel Sliders",
-                            isOn: $appState.showSliders
-                        )
-
-                        GlassToggle(
-                            label: "Recent Colors",
-                            isOn: $appState.showRecentColors
-                        )
-                    }
+struct LicenseSettingsView: View {
+    var body: some View {
+        ScrollView(.vertical) {
+            VStack(spacing: 16) {
+                GlassSection(title: "License") {
+                    Text("License management will be available here in a future update.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.tertiary)
                 }
             }
             .padding(.horizontal, 20)
@@ -376,6 +738,8 @@ struct AppearanceSettingsView: View {
 struct FormatsSettingsView: View {
     @Bindable var appState: AppState
     @State private var selectedFormatID: UUID?
+    @Environment(\.useGlassStyle) private var useGlassStyle
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         HStack(spacing: 0) {
@@ -415,7 +779,11 @@ struct FormatsSettingsView: View {
                 .padding(8)
             }
             .frame(width: 170)
-            .background(.ultraThinMaterial.opacity(0.3))
+            .background(
+                useGlassStyle
+                    ? AnyShapeStyle(.ultraThinMaterial.opacity(0.3))
+                    : AnyShapeStyle(colorScheme == .dark ? Color(white: 0.12) : Color(white: 0.94))
+            )
 
             Rectangle()
                 .fill(.primary.opacity(0.06))
@@ -623,6 +991,8 @@ struct FormatEditorView: View {
 struct PalettesSettingsView: View {
     @Bindable var appState: AppState
     @State private var selectedPaletteID: UUID?
+    @Environment(\.useGlassStyle) private var useGlassStyle
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         HStack(spacing: 0) {
@@ -661,7 +1031,11 @@ struct PalettesSettingsView: View {
                 .padding(8)
             }
             .frame(width: 170)
-            .background(.ultraThinMaterial.opacity(0.3))
+            .background(
+                useGlassStyle
+                    ? AnyShapeStyle(.ultraThinMaterial.opacity(0.3))
+                    : AnyShapeStyle(colorScheme == .dark ? Color(white: 0.12) : Color(white: 0.94))
+            )
 
             Rectangle()
                 .fill(.primary.opacity(0.06))
@@ -850,12 +1224,28 @@ struct PaletteColorSwatch: View {
     }
 }
 
+// MARK: - Glass Style Environment Key
+
+private struct GlassStyleKey: EnvironmentKey {
+    static let defaultValue: Bool = true
+}
+
+extension EnvironmentValues {
+    var useGlassStyle: Bool {
+        get { self[GlassStyleKey.self] }
+        set { self[GlassStyleKey.self] = newValue }
+    }
+}
+
 // MARK: - Reusable Glass Components
 
 /// Glass section card with a title and content.
 struct GlassSection<Content: View>: View {
     let title: String
     @ViewBuilder let content: Content
+
+    @Environment(\.useGlassStyle) private var useGlassStyle
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -870,7 +1260,10 @@ struct GlassSection<Content: View>: View {
         .padding(14)
         .background(
             RoundedRectangle(cornerRadius: 10)
-                .fill(.ultraThinMaterial.opacity(0.6))
+                .fill(useGlassStyle
+                    ? AnyShapeStyle(.ultraThinMaterial.opacity(0.6))
+                    : AnyShapeStyle(colorScheme == .dark ? Color(white: 0.15) : Color(white: 0.96))
+                )
         )
         .overlay(
             RoundedRectangle(cornerRadius: 10)
@@ -923,6 +1316,9 @@ struct GlassPicker<T: Hashable>: View {
     @Binding var selection: T
     let options: [(T, String)]
 
+    @Environment(\.useGlassStyle) private var useGlassStyle
+    @Environment(\.colorScheme) private var colorScheme
+
     var body: some View {
         HStack {
             Text(label)
@@ -957,7 +1353,10 @@ struct GlassPicker<T: Hashable>: View {
                 .padding(.vertical, 5)
                 .background(
                     RoundedRectangle(cornerRadius: 6)
-                        .fill(.ultraThinMaterial)
+                        .fill(useGlassStyle
+                            ? AnyShapeStyle(.ultraThinMaterial)
+                            : AnyShapeStyle(colorScheme == .dark ? Color(white: 0.18) : Color(white: 0.93))
+                        )
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 6)
@@ -975,6 +1374,9 @@ struct GlassTextField: View {
     var placeholder: String = ""
     var isMonospaced: Bool = false
 
+    @Environment(\.useGlassStyle) private var useGlassStyle
+    @Environment(\.colorScheme) private var colorScheme
+
     var body: some View {
         TextField(placeholder, text: $text)
             .textFieldStyle(.plain)
@@ -983,7 +1385,10 @@ struct GlassTextField: View {
             .padding(.vertical, 7)
             .background(
                 RoundedRectangle(cornerRadius: 7)
-                    .fill(.ultraThinMaterial)
+                    .fill(useGlassStyle
+                        ? AnyShapeStyle(.ultraThinMaterial)
+                        : AnyShapeStyle(colorScheme == .dark ? Color(white: 0.18) : Color(white: 0.93))
+                    )
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 7)
@@ -999,6 +1404,8 @@ struct GlassButton: View {
     let action: () -> Void
 
     @State private var isHovering = false
+    @Environment(\.useGlassStyle) private var useGlassStyle
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         Button(action: action) {
@@ -1013,7 +1420,10 @@ struct GlassButton: View {
             .padding(.vertical, 6)
             .background(
                 RoundedRectangle(cornerRadius: 6)
-                    .fill(.ultraThinMaterial)
+                    .fill(useGlassStyle
+                        ? AnyShapeStyle(.ultraThinMaterial)
+                        : AnyShapeStyle(colorScheme == .dark ? Color(white: 0.18) : Color(white: 0.93))
+                    )
                     .opacity(isHovering ? 1 : 0.6)
             )
             .overlay(
@@ -1038,6 +1448,8 @@ struct GlassIconButton: View {
     let action: () -> Void
 
     @State private var isHovering = false
+    @Environment(\.useGlassStyle) private var useGlassStyle
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         Button(action: action) {
@@ -1047,7 +1459,10 @@ struct GlassIconButton: View {
                 .frame(width: size, height: size)
                 .background(
                     RoundedRectangle(cornerRadius: 5)
-                        .fill(.ultraThinMaterial)
+                        .fill(useGlassStyle
+                            ? AnyShapeStyle(.ultraThinMaterial)
+                            : AnyShapeStyle(colorScheme == .dark ? Color(white: 0.18) : Color(white: 0.93))
+                        )
                         .opacity(isHovering ? 1 : 0)
                 )
         }
@@ -1066,6 +1481,8 @@ struct GlassTokenButton: View {
     let action: () -> Void
 
     @State private var isHovering = false
+    @Environment(\.useGlassStyle) private var useGlassStyle
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         Button(action: action) {
@@ -1076,7 +1493,10 @@ struct GlassTokenButton: View {
                 .padding(.vertical, 3)
                 .background(
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(.ultraThinMaterial)
+                        .fill(useGlassStyle
+                            ? AnyShapeStyle(.ultraThinMaterial)
+                            : AnyShapeStyle(colorScheme == .dark ? Color(white: 0.18) : Color(white: 0.93))
+                        )
                         .opacity(isHovering ? 1 : 0.5)
                 )
                 .overlay(
@@ -1149,6 +1569,8 @@ struct GlassListItem: View {
     let action: () -> Void
 
     @State private var isHovering = false
+    @Environment(\.useGlassStyle) private var useGlassStyle
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         Button(action: action) {
@@ -1175,7 +1597,10 @@ struct GlassListItem: View {
             .padding(.vertical, 7)
             .background(
                 RoundedRectangle(cornerRadius: 6)
-                    .fill(.ultraThinMaterial)
+                    .fill(useGlassStyle
+                        ? AnyShapeStyle(.ultraThinMaterial)
+                        : AnyShapeStyle(colorScheme == .dark ? Color(white: 0.18) : Color(white: 0.93))
+                    )
                     .opacity(isSelected ? 1 : (isHovering ? 0.5 : 0))
             )
             .overlay(
@@ -1324,14 +1749,18 @@ final class ShortcutCaptureNSView: NSView {
     }
 }
 
-/// Notification name for hotkey trigger.
+/// Notification names.
 extension Notification.Name {
     static let pickColorHotkey = Notification.Name("PickPalette.pickColorHotkey")
+    static let openLayoutEditor = Notification.Name("PickPalette.openLayoutEditor")
 }
 
 /// Keyboard key cap visual.
 struct KeyCapView: View {
     let key: String
+
+    @Environment(\.useGlassStyle) private var useGlassStyle
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         Text(key)
@@ -1340,7 +1769,10 @@ struct KeyCapView: View {
             .padding(.horizontal, 4)
             .background(
                 RoundedRectangle(cornerRadius: 5)
-                    .fill(.ultraThinMaterial)
+                    .fill(useGlassStyle
+                        ? AnyShapeStyle(.ultraThinMaterial)
+                        : AnyShapeStyle(colorScheme == .dark ? Color(white: 0.18) : Color(white: 0.93))
+                    )
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 5)
