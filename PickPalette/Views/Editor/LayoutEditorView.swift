@@ -110,6 +110,7 @@ struct LayoutEditorView: View {
             }
         }
         .frame(minWidth: 600, minHeight: 400)
+        .environment(\.useGlassStyle, appState.effectiveGlassStyle)
     }
 
     // MARK: - Toolbar

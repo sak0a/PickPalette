@@ -55,6 +55,11 @@ final class AppState {
         formats.first(where: { $0.id == defaultFormatID }) ?? ColorFormat.hexFormat
     }
 
+    /// Effective glass mode honors the app toggle and the system transparency accessibility setting.
+    var effectiveGlassStyle: Bool {
+        useGlassStyle && !NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency
+    }
+
     // MARK: - Actions
 
     func copyColor(format: ColorFormat? = nil) {
@@ -267,6 +272,14 @@ enum AppearanceMode: String, Codable, CaseIterable {
         case .system: return nil
         case .light: return NSAppearance(named: .aqua)
         case .dark: return NSAppearance(named: .darkAqua)
+        }
+    }
+
+    var colorSchemeOverride: ColorScheme? {
+        switch self {
+        case .system: return nil
+        case .light: return .light
+        case .dark: return .dark
         }
     }
 }

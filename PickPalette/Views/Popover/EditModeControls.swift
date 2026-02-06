@@ -6,6 +6,8 @@ import SwiftUI
 /// Places new widgets at absolute canvas positions.
 struct AddWidgetMenu: View {
     @Bindable var appState: AppState
+    @Environment(\.useGlassStyle) private var useGlassStyle
+    @Environment(\.colorScheme) private var colorScheme
 
     private var availableTypes: [WidgetType] {
         let existingTypes = Set(appState.layoutConfig.widgets.map(\.widgetType))
@@ -35,11 +37,22 @@ struct AddWidgetMenu: View {
             .padding(.vertical, 5)
             .background(
                 Capsule()
-                    .fill(.primary.opacity(0.06))
+                    .fill(
+                        PopoverTheme.subtleFill(
+                            useGlassStyle: useGlassStyle,
+                            colorScheme: colorScheme
+                        )
+                    )
             )
             .overlay(
                 Capsule()
-                    .strokeBorder(.primary.opacity(0.06), lineWidth: 0.5)
+                    .strokeBorder(
+                        PopoverTheme.subtleStroke(
+                            useGlassStyle: useGlassStyle,
+                            colorScheme: colorScheme
+                        ),
+                        lineWidth: 0.5
+                    )
             )
         }
         .menuStyle(.borderlessButton)

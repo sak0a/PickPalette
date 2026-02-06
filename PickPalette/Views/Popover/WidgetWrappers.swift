@@ -5,12 +5,18 @@ import SwiftUI
 /// Standalone color swatch circle extracted from the old headerRow.
 struct WidgetColorSwatch: View {
     @Bindable var appState: AppState
+    @Environment(\.useGlassStyle) private var useGlassStyle
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         ZStack {
             Circle()
-                .fill(.ultraThinMaterial)
+                .fill(
+                    PopoverTheme.controlBackground(
+                        useGlassStyle: useGlassStyle,
+                        colorScheme: colorScheme
+                    )
+                )
                 .frame(width: 52, height: 52)
 
             Circle()
@@ -80,9 +86,11 @@ struct WidgetHexField: View {
         .padding(.vertical, 4)
         .background(
             RoundedRectangle(cornerRadius: 6)
-                .fill(useGlassStyle
-                    ? AnyShapeStyle(.ultraThinMaterial)
-                    : AnyShapeStyle(colorScheme == .dark ? Color(white: 0.18) : Color(white: 0.93))
+                .fill(
+                    PopoverTheme.controlBackground(
+                        useGlassStyle: useGlassStyle,
+                        colorScheme: colorScheme
+                    )
                 )
         )
         .overlay(
