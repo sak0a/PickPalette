@@ -26,21 +26,24 @@ final class AppState {
     var appearance: AppearanceMode = .system
     var launchAtLogin: Bool = false
     var compactMode: Bool = false
+    var useGlassStyle: Bool = true
     var popoverLayout: PopoverLayout = .vertical
     var hotkeyKeyCode: UInt32 = 0x08   // 'C' key
     var hotkeyModifiers: UInt32 = UInt32(optionKey | shiftKey) // Option+Shift
 
-    // Quick copy button formats
-    var copyButton1FormatID: UUID = ColorFormat.hexFormat.id
-    var copyButton2FormatID: UUID = ColorFormat.rgbaFormat.id
-
-    // Popover element visibility
+    // Popover element visibility (legacy — superseded by layoutConfig)
     var showColorSwatch: Bool = true
     var showColorSpaceTabs: Bool = true
     var showHexField: Bool = true
     var showSpectrumPicker: Bool = true
     var showSliders: Bool = true
     var showRecentColors: Bool = true
+
+    // Configurable color space tabs
+    var enabledColorSpaces: [ColorSpaceGroup] = [.hsl, .hsb, .rgb, .cmyk]
+
+    // Widget-based layout configuration
+    var layoutConfig: PopoverLayoutConfig = .verticalPreset
 
     // UI state
     var showCopiedFeedback: Bool = false
@@ -50,14 +53,6 @@ final class AppState {
 
     var defaultFormat: ColorFormat {
         formats.first(where: { $0.id == defaultFormatID }) ?? ColorFormat.hexFormat
-    }
-
-    var copyButton1Format: ColorFormat {
-        formats.first(where: { $0.id == copyButton1FormatID }) ?? ColorFormat.hexFormat
-    }
-
-    var copyButton2Format: ColorFormat {
-        formats.first(where: { $0.id == copyButton2FormatID }) ?? ColorFormat.rgbaFormat
     }
 
     // MARK: - Actions
@@ -133,17 +128,18 @@ final class AppState {
             appearance: appearance,
             launchAtLogin: launchAtLogin,
             compactMode: compactMode,
+            useGlassStyle: useGlassStyle,
             hotkeyKeyCode: hotkeyKeyCode,
             hotkeyModifiers: hotkeyModifiers,
-            copyButton1FormatID: copyButton1FormatID,
-            copyButton2FormatID: copyButton2FormatID,
             showColorSwatch: showColorSwatch,
             showColorSpaceTabs: showColorSpaceTabs,
             showHexField: showHexField,
             showSpectrumPicker: showSpectrumPicker,
             showSliders: showSliders,
             showRecentColors: showRecentColors,
-            popoverLayout: popoverLayout
+            popoverLayout: popoverLayout,
+            layoutConfig: layoutConfig,
+            enabledColorSpaces: enabledColorSpaces
         )
         if let encoded = try? JSONEncoder().encode(data) {
             try? encoded.write(to: Self.stateURL, options: .atomic)
@@ -161,10 +157,9 @@ final class AppState {
         appearance = state.appearance
         launchAtLogin = state.launchAtLogin
         compactMode = state.compactMode ?? false
+        useGlassStyle = state.useGlassStyle ?? true
         if let kc = state.hotkeyKeyCode { hotkeyKeyCode = kc }
         if let mods = state.hotkeyModifiers { hotkeyModifiers = mods }
-        if let id1 = state.copyButton1FormatID { copyButton1FormatID = id1 }
-        if let id2 = state.copyButton2FormatID { copyButton2FormatID = id2 }
         showColorSwatch = state.showColorSwatch ?? true
         showColorSpaceTabs = state.showColorSpaceTabs ?? true
         showHexField = state.showHexField ?? true
@@ -172,6 +167,47 @@ final class AppState {
         showSliders = state.showSliders ?? true
         showRecentColors = state.showRecentColors ?? true
         popoverLayout = state.popoverLayout ?? .vertical
+        if let ecs = state.enabledColorSpaces, !ecs.isEmpty { enabledColorSpaces = ecs }
+
+        // Widget layout config — use saved or migrate from legacy fields
+        if let lc = state.layoutConfig {
+            layoutConfig = lc
+        } else {
+            layoutConfig = Self.migrateFromLegacy(state)
+        }
+
+        // Auto-migrate to absolute positions if needed
+        if layoutConfig.needsAbsoluteMigration {
+            layoutConfig.migrateToAbsolute()
+            save()
+        }
+    }
+
+    /// Build a PopoverLayoutConfig from legacy show/hide booleans.
+    private static func migrateFromLegacy(_ state: PersistentState) -> PopoverLayoutConfig {
+        let isHorizontal = state.popoverLayout == .horizontal
+        let isCompact = state.compactMode == true
+
+        if isCompact {
+            return .compactPreset
+        }
+
+        var base = isHorizontal ? PopoverLayoutConfig.horizontalPreset : PopoverLayoutConfig.verticalPreset
+
+        // Apply legacy visibility toggles
+        for i in base.widgets.indices {
+            switch base.widgets[i].widgetType {
+            case .colorSwatch:      base.widgets[i].isEnabled = state.showColorSwatch ?? true
+            case .colorSpaceTabs:   base.widgets[i].isEnabled = state.showColorSpaceTabs ?? true
+            case .hexField:         base.widgets[i].isEnabled = state.showHexField ?? true
+            case .spectrumPicker:   base.widgets[i].isEnabled = state.showSpectrumPicker ?? true
+            case .channelSliders:   base.widgets[i].isEnabled = state.showSliders ?? true
+            case .recentColors:     base.widgets[i].isEnabled = state.showRecentColors ?? true
+            default: break
+            }
+        }
+
+        return base
     }
 }
 
@@ -186,6 +222,7 @@ private struct PersistentState: Codable {
     var appearance: AppearanceMode
     var launchAtLogin: Bool
     var compactMode: Bool?
+    var useGlassStyle: Bool?
     var hotkeyKeyCode: UInt32?
     var hotkeyModifiers: UInt32?
     var copyButton1FormatID: UUID?
@@ -197,6 +234,8 @@ private struct PersistentState: Codable {
     var showSliders: Bool?
     var showRecentColors: Bool?
     var popoverLayout: PopoverLayout?
+    var layoutConfig: PopoverLayoutConfig?
+    var enabledColorSpaces: [ColorSpaceGroup]?
 }
 
 // MARK: - Supporting Types

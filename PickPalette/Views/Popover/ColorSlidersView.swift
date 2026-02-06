@@ -13,6 +13,8 @@ struct ColorSlidersView: View {
                 hsbSliders
             case .rgb:
                 rgbSliders
+            case .cmyk:
+                cmykSliders
             default:
                 rgbSliders
             }
@@ -170,6 +172,76 @@ struct ColorSlidersView: View {
         )
     }
 
+    // MARK: - CMYK Sliders
+
+    @ViewBuilder
+    private var cmykSliders: some View {
+        GradientSliderView(
+            label: "C",
+            value: Binding(
+                get: { appState.currentColor.cyan },
+                set: { newVal in
+                    let col = appState.currentColor
+                    appState.currentColor = ColorModel.fromCMYK(
+                        c: newVal, m: col.magenta, y: col.yellow, k: col.key,
+                        a: col.alpha
+                    )
+                }
+            ),
+            range: 0...1,
+            gradient: cyanGradient,
+            displayValue: "\(Int(round(appState.currentColor.cyan * 100)))%"
+        )
+        GradientSliderView(
+            label: "M",
+            value: Binding(
+                get: { appState.currentColor.magenta },
+                set: { newVal in
+                    let col = appState.currentColor
+                    appState.currentColor = ColorModel.fromCMYK(
+                        c: col.cyan, m: newVal, y: col.yellow, k: col.key,
+                        a: col.alpha
+                    )
+                }
+            ),
+            range: 0...1,
+            gradient: magentaGradient,
+            displayValue: "\(Int(round(appState.currentColor.magenta * 100)))%"
+        )
+        GradientSliderView(
+            label: "Y",
+            value: Binding(
+                get: { appState.currentColor.yellow },
+                set: { newVal in
+                    let col = appState.currentColor
+                    appState.currentColor = ColorModel.fromCMYK(
+                        c: col.cyan, m: col.magenta, y: newVal, k: col.key,
+                        a: col.alpha
+                    )
+                }
+            ),
+            range: 0...1,
+            gradient: yellowGradient,
+            displayValue: "\(Int(round(appState.currentColor.yellow * 100)))%"
+        )
+        GradientSliderView(
+            label: "K",
+            value: Binding(
+                get: { appState.currentColor.key },
+                set: { newVal in
+                    let col = appState.currentColor
+                    appState.currentColor = ColorModel.fromCMYK(
+                        c: col.cyan, m: col.magenta, y: col.yellow, k: newVal,
+                        a: col.alpha
+                    )
+                }
+            ),
+            range: 0...1,
+            gradient: keyGradient,
+            displayValue: "\(Int(round(appState.currentColor.key * 100)))%"
+        )
+    }
+
     // MARK: - Alpha Slider
 
     private var alphaSlider: some View {
@@ -259,6 +331,40 @@ struct ColorSlidersView: View {
         return [
             ColorModel(red: c.red, green: c.green, blue: c.blue, alpha: 0).color,
             ColorModel(red: c.red, green: c.green, blue: c.blue, alpha: 1).color
+        ]
+    }
+
+    // MARK: - CMYK Gradients
+
+    private var cyanGradient: [Color] {
+        let col = appState.currentColor
+        return [
+            ColorModel.fromCMYK(c: 0, m: col.magenta, y: col.yellow, k: col.key, a: col.alpha).color,
+            ColorModel.fromCMYK(c: 1, m: col.magenta, y: col.yellow, k: col.key, a: col.alpha).color
+        ]
+    }
+
+    private var magentaGradient: [Color] {
+        let col = appState.currentColor
+        return [
+            ColorModel.fromCMYK(c: col.cyan, m: 0, y: col.yellow, k: col.key, a: col.alpha).color,
+            ColorModel.fromCMYK(c: col.cyan, m: 1, y: col.yellow, k: col.key, a: col.alpha).color
+        ]
+    }
+
+    private var yellowGradient: [Color] {
+        let col = appState.currentColor
+        return [
+            ColorModel.fromCMYK(c: col.cyan, m: col.magenta, y: 0, k: col.key, a: col.alpha).color,
+            ColorModel.fromCMYK(c: col.cyan, m: col.magenta, y: 1, k: col.key, a: col.alpha).color
+        ]
+    }
+
+    private var keyGradient: [Color] {
+        let col = appState.currentColor
+        return [
+            ColorModel.fromCMYK(c: col.cyan, m: col.magenta, y: col.yellow, k: 0, a: col.alpha).color,
+            ColorModel.fromCMYK(c: col.cyan, m: col.magenta, y: col.yellow, k: 1, a: col.alpha).color
         ]
     }
 }

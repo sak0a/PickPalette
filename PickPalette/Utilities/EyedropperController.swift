@@ -161,7 +161,7 @@ final class EyedropperController {
         guard let frame = streamOutput?.getLatestFrame() else { return }
 
         // Position loupe offset from cursor
-        let offset: CGFloat = 24
+        let offset: CGFloat = 12
         var origin = NSPoint(
             x: screenPoint.x + offset,
             y: screenPoint.y - loupeSize - previewHeight - offset
