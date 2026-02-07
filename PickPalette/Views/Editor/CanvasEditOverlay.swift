@@ -40,29 +40,15 @@ struct CanvasEditOverlay: View {
             : AnyShapeStyle(colorScheme == .dark ? Color(white: 0.18) : Color(white: 0.93))
     }
 
-    /// Dynamic display name — copy buttons show their format name.
-    private var displayName: String {
-        if config.widgetType == .copyButton {
-            let name = appState.formats.first(where: { $0.id == config.formatID })?.name ?? "HEX"
-            return "Copy \(name)"
-        }
-        return config.widgetType.displayName
-    }
-
     var body: some View {
         ZStack(alignment: .topLeading) {
             // Selection / hover border
             RoundedRectangle(cornerRadius: 2)
                 .strokeBorder(
-                    isSelected ? Color.accentColor : (isHovering ? Color.primary.opacity(0.2) : Color.primary.opacity(0.08)),
-                    style: StrokeStyle(lineWidth: 0.5, dash: isSelected ? [] : [4, 3])
+                    isSelected ? Color.accentColor.opacity(0.6) : (isHovering ? Color.primary.opacity(0.12) : Color.primary.opacity(0.05)),
+                    style: StrokeStyle(lineWidth: 0.5, dash: isSelected ? [1, 3] : [4, 3])
                 )
                 .frame(width: widgetW, height: widgetH)
-
-            // Widget name label (visible on hover or selection)
-            if isHovering || isSelected {
-                widgetLabel
-            }
 
             // Control buttons (visible when selected)
             if isSelected {
@@ -85,42 +71,13 @@ struct CanvasEditOverlay: View {
                 isHovering = hovering
             }
         }
-        .overlay {
+        .contextMenu { widgetContextMenu }
+        .overlay(alignment: .topLeading) {
             if isSelected {
                 resizeHandles
             }
         }
         .offset(x: widgetX, y: widgetY)
-    }
-
-    // MARK: - Widget Label
-
-    private var widgetLabel: some View {
-        VStack {
-            HStack {
-                HStack(spacing: 2) {
-                    Image(systemName: "line.3.horizontal")
-                        .font(.system(size: 4, weight: .bold))
-                    Text(displayName)
-                        .font(.system(size: 5, weight: .semibold))
-                }
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 3)
-                .padding(.vertical, 1)
-                .background(
-                    Capsule()
-                        .fill(controlSurfaceStyle)
-                )
-                .overlay(
-                    Capsule()
-                        .strokeBorder(.primary.opacity(0.08), lineWidth: 0.5)
-                )
-                .offset(x: 2, y: 2)
-
-                Spacer()
-            }
-            Spacer()
-        }
     }
 
     // MARK: - Control Buttons
@@ -235,12 +192,12 @@ struct CanvasEditOverlay: View {
 
     @ViewBuilder
     private func resizeHandle(for edge: ResizeEdge) -> some View {
-        let handleSize: CGFloat = 4
+        let handleSize: CGFloat = 3
 
         Circle()
-            .fill(Color.accentColor)
+            .fill(Color.accentColor.opacity(0.6))
             .frame(width: handleSize, height: handleSize)
-            .shadow(color: Color.accentColor.opacity(0.3), radius: 1)
+            .shadow(color: Color.accentColor.opacity(0.15), radius: 1)
             .offset(handleOffset(for: edge, size: CGSize(width: widgetW, height: widgetH)))
             .gesture(resizeGesture(for: edge))
             .onHover { hovering in
@@ -255,7 +212,7 @@ struct CanvasEditOverlay: View {
     private func handleOffset(for edge: ResizeEdge, size: CGSize) -> CGSize {
         let w = size.width
         let h = size.height
-        let half: CGFloat = 2  // handleSize / 2 — centers the circle on the edge
+        let half: CGFloat = 1.5  // handleSize / 2 — centers the circle on the edge
         switch edge {
         case .topLeft:     return CGSize(width: -half,        height: -half)
         case .top:         return CGSize(width: w / 2 - half, height: -half)
@@ -451,6 +408,116 @@ struct CanvasEditOverlay: View {
     private func updateFormatID(_ formatID: UUID) {
         guard let index = appState.layoutConfig.widgets.firstIndex(where: { $0.id == config.id }) else { return }
         appState.layoutConfig.widgets[index].formatID = formatID
+        appState.save()
+    }
+
+    // MARK: - Context Menu
+
+    @ViewBuilder
+    private var widgetContextMenu: some View {
+        // Swatch shape submenu
+        if config.widgetType == .colorSwatch {
+            Menu("Shape") {
+                ForEach(SwatchShape.allCases, id: \.self) { shape in
+                    Button {
+                        updateSwatchShape(shape)
+                    } label: {
+                        HStack {
+                            Text(shape.displayName)
+                            if (config.swatchShape ?? .circle) == shape {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Color space tabs submenus
+        if config.widgetType == .colorSpaceTabs {
+            let allSpaces: [ColorSpaceGroup] = [.hsl, .hsb, .rgb, .cmyk]
+            let currentSpaces = config.enabledSpaces ?? allSpaces.map(\.rawValue)
+
+            Menu("Color Spaces") {
+                ForEach(allSpaces, id: \.self) { space in
+                    let isOn = currentSpaces.contains(space.rawValue)
+                    Button {
+                        toggleColorSpace(space)
+                    } label: {
+                        HStack {
+                            Text(space.displayName)
+                            if isOn {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+            }
+
+            Menu("Orientation") {
+                ForEach(TabOrientation.allCases, id: \.self) { orient in
+                    Button {
+                        updateTabOrientation(orient)
+                    } label: {
+                        HStack {
+                            Text(orient.displayName)
+                            if (config.tabOrientation ?? .horizontal) == orient {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Divider()
+
+        // Toggle visibility
+        Button {
+            toggleEnabled()
+        } label: {
+            Label(
+                config.isEnabled ? "Hide" : "Show",
+                systemImage: config.isEnabled ? "eye.slash" : "eye"
+            )
+        }
+
+        // Delete
+        Button(role: .destructive) {
+            deleteWidget()
+        } label: {
+            Label("Delete", systemImage: "trash")
+        }
+    }
+
+    // MARK: - Context Menu Actions
+
+    private func updateSwatchShape(_ shape: SwatchShape) {
+        guard let index = appState.layoutConfig.widgets.firstIndex(where: { $0.id == config.id }) else { return }
+        appState.layoutConfig.widgets[index].swatchShape = shape
+        appState.save()
+    }
+
+    private func toggleColorSpace(_ space: ColorSpaceGroup) {
+        guard let index = appState.layoutConfig.widgets.firstIndex(where: { $0.id == config.id }) else { return }
+        let allSpaces: [ColorSpaceGroup] = [.hsl, .hsb, .rgb, .cmyk]
+        var current = appState.layoutConfig.widgets[index].enabledSpaces ?? allSpaces.map(\.rawValue)
+
+        if current.contains(space.rawValue) {
+            // Don't allow removing the last space
+            if current.count > 1 {
+                current.removeAll { $0 == space.rawValue }
+            }
+        } else {
+            current.append(space.rawValue)
+        }
+        appState.layoutConfig.widgets[index].enabledSpaces = current
+        appState.save()
+    }
+
+    private func updateTabOrientation(_ orientation: TabOrientation) {
+        guard let index = appState.layoutConfig.widgets.firstIndex(where: { $0.id == config.id }) else { return }
+        appState.layoutConfig.widgets[index].tabOrientation = orientation
         appState.save()
     }
 }

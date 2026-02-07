@@ -285,16 +285,16 @@ struct PermissionRow: View {
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: icon)
-                .font(.system(size: 14, weight: .medium))
+                .font(.system(size: 18, weight: .medium))
                 .foregroundStyle(isGranted ? .green : .orange)
-                .frame(width: 24)
+                .frame(width: 28)
 
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 5) {
                     Text(label)
                         .font(.system(size: 12, weight: .medium))
                     Image(systemName: isGranted ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                        .font(.system(size: 10))
+                        .font(.system(size: 12))
                         .foregroundStyle(isGranted ? .green : .orange)
                 }
                 Text(description)
@@ -333,7 +333,7 @@ struct PermissionRow: View {
                 .onHover { isHovering = $0 }
             } else {
                 Text("Granted")
-                    .font(.system(size: 10, weight: .medium))
+                    .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(.green.opacity(0.8))
             }
         }

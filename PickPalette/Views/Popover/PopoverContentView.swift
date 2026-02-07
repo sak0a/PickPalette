@@ -112,16 +112,22 @@ struct PopoverContentView: View {
 struct ToolbarButton: View {
     let icon: String
     let tooltip: String
+    var width: CGFloat = 28
+    var height: CGFloat = 28
     let action: () -> Void
 
     @State private var isHovering = false
     @Environment(\.useGlassStyle) private var useGlassStyle
     @Environment(\.colorScheme) private var colorScheme
 
+    private var dim: CGFloat { min(width, height) }
+    private var iconSize: CGFloat { max(8, dim * 0.46) }
+    private var cornerRadius: CGFloat { max(3, dim * 0.21) }
+
     var body: some View {
         Button(action: action) {
             Image(systemName: icon)
-                .font(.system(size: 13, weight: .medium))
+                .font(.system(size: iconSize, weight: .medium))
                 .foregroundStyle(
                     isHovering
                         ? Color.primary
@@ -130,9 +136,9 @@ struct ToolbarButton: View {
                             colorScheme: colorScheme
                         )
                 )
-                .frame(width: 28, height: 28)
+                .frame(width: width, height: height)
                 .background(
-                    RoundedRectangle(cornerRadius: 6)
+                    RoundedRectangle(cornerRadius: cornerRadius)
                         .fill(
                             PopoverTheme.controlBackground(
                                 useGlassStyle: useGlassStyle,
@@ -157,19 +163,33 @@ struct ToolbarButton: View {
 
 struct CopyFormatButton: View {
     let format: ColorFormat
+    var width: CGFloat = 80
+    var height: CGFloat = 28
     let action: () -> Void
 
     @State private var isHovering = false
     @Environment(\.useGlassStyle) private var useGlassStyle
     @Environment(\.colorScheme) private var colorScheme
 
+    private var scale: CGFloat { min(width / 80.0, height / 28.0) }
+    private var iconFont: CGFloat { max(7, 10 * scale) }
+    private var textFont: CGFloat { max(8, 11 * scale) }
+    private var hPadding: CGFloat { max(4, 8 * scale) }
+    private var vPadding: CGFloat { max(3, 6 * scale) }
+    private var spacing: CGFloat { max(2, 4 * scale) }
+    private var cornerRadius: CGFloat { max(3, 6 * scale) }
+    private var showLabel: Bool { width >= 40 }
+
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 4) {
+            HStack(spacing: spacing) {
                 Image(systemName: "doc.on.doc")
-                    .font(.system(size: 10, weight: .medium))
-                Text(format.name)
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.system(size: iconFont, weight: .medium))
+                if showLabel {
+                    Text(format.name)
+                        .font(.system(size: textFont, weight: .medium))
+                        .lineLimit(1)
+                }
             }
             .foregroundStyle(
                 isHovering
@@ -179,10 +199,10 @@ struct CopyFormatButton: View {
                         colorScheme: colorScheme
                     )
             )
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
+            .padding(.horizontal, hPadding)
+            .padding(.vertical, vPadding)
             .background(
-                RoundedRectangle(cornerRadius: 6)
+                RoundedRectangle(cornerRadius: cornerRadius)
                     .fill(
                         PopoverTheme.controlBackground(
                             useGlassStyle: useGlassStyle,
@@ -191,7 +211,7 @@ struct CopyFormatButton: View {
                     )
                     .opacity(isHovering ? 1 : 0)
             )
-            .contentShape(RoundedRectangle(cornerRadius: 6))
+            .contentShape(RoundedRectangle(cornerRadius: cornerRadius))
         }
         .buttonStyle(.plain)
         .onHover { hovering in
@@ -208,13 +228,28 @@ struct CopyFormatButton: View {
 struct GlassSegmentedControl<T: Hashable>: View {
     @Binding var selection: T
     let options: [(T, String)]
+    var height: CGFloat = 34
+    var orientation: Axis = .horizontal
 
     @Namespace private var segmentNamespace
     @Environment(\.useGlassStyle) private var useGlassStyle
     @Environment(\.colorScheme) private var colorScheme
 
+    private var scale: CGFloat { height / 34.0 }
+    private var textSize: CGFloat { max(7, 10 * scale) }
+    private var segmentVPadding: CGFloat { max(1, 3 * scale) }
+    private var containerPadding: CGFloat { max(1, 2 * scale) }
+    private var segmentSpacing: CGFloat { max(1, 2 * scale) }
+    private var segmentRadius: CGFloat { max(2, 4 * scale) }
+    private var containerRadius: CGFloat { max(3, 6 * scale) }
+    private var shadowRadius: CGFloat { max(1, 4 * scale) }
+
     var body: some View {
-        HStack(spacing: 2) {
+        let layout = orientation == .horizontal
+            ? AnyLayout(HStackLayout(spacing: segmentSpacing))
+            : AnyLayout(VStackLayout(spacing: segmentSpacing))
+
+        layout {
             ForEach(Array(options.enumerated()), id: \.offset) { index, option in
                 let isSelected = selection == option.0
                 Button {
@@ -223,26 +258,27 @@ struct GlassSegmentedControl<T: Hashable>: View {
                     }
                 } label: {
                     Text(option.1)
-                        .font(.system(size: 10, weight: isSelected ? .bold : .medium))
+                        .font(.system(size: textSize, weight: isSelected ? .bold : .medium))
                         .foregroundStyle(isSelected ? .white : .secondary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 3)
+                        .frame(maxWidth: .infinity, maxHeight: orientation == .vertical ? .infinity : nil)
+                        .padding(.vertical, segmentVPadding)
+                        .padding(.horizontal, orientation == .vertical ? segmentVPadding : 0)
                         .background {
                             if isSelected {
-                                RoundedRectangle(cornerRadius: 4)
+                                RoundedRectangle(cornerRadius: segmentRadius)
                                     .fill(Color.accentColor.gradient)
-                                    .shadow(color: Color.accentColor.opacity(0.35), radius: 4, y: 1)
+                                    .shadow(color: Color.accentColor.opacity(0.35), radius: shadowRadius, y: max(0.5, 1 * scale))
                                     .matchedGeometryEffect(id: "segment", in: segmentNamespace)
                             }
                         }
-                        .contentShape(RoundedRectangle(cornerRadius: 4))
+                        .contentShape(RoundedRectangle(cornerRadius: segmentRadius))
                 }
                 .buttonStyle(.plain)
             }
         }
-        .padding(2)
+        .padding(containerPadding)
         .background(
-            RoundedRectangle(cornerRadius: 6)
+            RoundedRectangle(cornerRadius: containerRadius)
                 .fill(
                     PopoverTheme.subtleFill(
                         useGlassStyle: useGlassStyle,
@@ -251,7 +287,7 @@ struct GlassSegmentedControl<T: Hashable>: View {
                 )
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 6)
+            RoundedRectangle(cornerRadius: containerRadius)
                 .strokeBorder(
                     PopoverTheme.subtleStroke(
                         useGlassStyle: useGlassStyle,

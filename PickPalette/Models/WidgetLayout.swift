@@ -7,6 +7,7 @@ enum WidgetType: String, Codable, CaseIterable, Identifiable {
     case colorSwatch
     case colorSpaceTabs
     case hexField
+    case colorSpaceField
     case spectrumPicker
     case channelSliders
     case recentColors
@@ -22,6 +23,7 @@ enum WidgetType: String, Codable, CaseIterable, Identifiable {
         case .colorSwatch:      return "Color Swatch"
         case .colorSpaceTabs:   return "Color Space Tabs"
         case .hexField:         return "Hex Field"
+        case .colorSpaceField:  return "Color Space Field"
         case .spectrumPicker:   return "Spectrum Picker"
         case .channelSliders:   return "Channel Sliders"
         case .recentColors:     return "Recent Colors"
@@ -37,6 +39,7 @@ enum WidgetType: String, Codable, CaseIterable, Identifiable {
         case .colorSwatch:      return "circle.fill"
         case .colorSpaceTabs:   return "slider.horizontal.3"
         case .hexField:         return "number"
+        case .colorSpaceField:  return "textformat.abc"
         case .spectrumPicker:   return "paintbrush"
         case .channelSliders:   return "slider.vertical.3"
         case .recentColors:     return "clock"
@@ -51,6 +54,22 @@ enum WidgetType: String, Codable, CaseIterable, Identifiable {
     var allowsMultipleInstances: Bool {
         self == .divider || self == .copyButton
     }
+}
+
+// MARK: - Swatch Shape
+
+/// Shape option for the color swatch widget.
+enum SwatchShape: String, Codable, CaseIterable {
+    case circle, squircle
+    var displayName: String { self == .circle ? "Circle" : "Squircle" }
+}
+
+// MARK: - Tab Orientation
+
+/// Orientation option for the color space tabs widget.
+enum TabOrientation: String, Codable, CaseIterable {
+    case horizontal, vertical
+    var displayName: String { rawValue.capitalized }
 }
 
 // MARK: - Widget Config
@@ -70,6 +89,11 @@ struct WidgetConfig: Identifiable, Equatable, Hashable {
     var width: CGFloat?
     var height: CGFloat?
 
+    // Per-widget customization (nil = use defaults)
+    var swatchShape: SwatchShape?
+    var enabledSpaces: [String]?
+    var tabOrientation: TabOrientation?
+
     init(
         id: UUID = UUID(),
         widgetType: WidgetType,
@@ -80,7 +104,10 @@ struct WidgetConfig: Identifiable, Equatable, Hashable {
         x: CGFloat? = nil,
         y: CGFloat? = nil,
         width: CGFloat? = nil,
-        height: CGFloat? = nil
+        height: CGFloat? = nil,
+        swatchShape: SwatchShape? = nil,
+        enabledSpaces: [String]? = nil,
+        tabOrientation: TabOrientation? = nil
     ) {
         self.id = id
         self.widgetType = widgetType
@@ -92,6 +119,9 @@ struct WidgetConfig: Identifiable, Equatable, Hashable {
         self.y = y
         self.width = width
         self.height = height
+        self.swatchShape = swatchShape
+        self.enabledSpaces = enabledSpaces
+        self.tabOrientation = tabOrientation
     }
 }
 
@@ -101,6 +131,7 @@ extension WidgetConfig: Codable {
     private enum CodingKeys: String, CodingKey {
         case id, widgetType, isEnabled, widthFraction, span, customHeight, formatID
         case x, y, width, height
+        case swatchShape, enabledSpaces, tabOrientation
     }
 
     init(from decoder: Decoder) throws {
@@ -116,6 +147,11 @@ extension WidgetConfig: Codable {
         y = try container.decodeIfPresent(CGFloat.self, forKey: .y)
         width = try container.decodeIfPresent(CGFloat.self, forKey: .width)
         height = try container.decodeIfPresent(CGFloat.self, forKey: .height)
+
+        // Per-widget customization
+        swatchShape = try container.decodeIfPresent(SwatchShape.self, forKey: .swatchShape)
+        enabledSpaces = try container.decodeIfPresent([String].self, forKey: .enabledSpaces)
+        tabOrientation = try container.decodeIfPresent(TabOrientation.self, forKey: .tabOrientation)
 
         // Widget type migration: copyButton1/copyButton2 → copyButton
         let rawType = try container.decode(String.self, forKey: .widgetType)
@@ -161,6 +197,9 @@ extension WidgetConfig: Codable {
         try container.encodeIfPresent(y, forKey: .y)
         try container.encodeIfPresent(width, forKey: .width)
         try container.encodeIfPresent(height, forKey: .height)
+        try container.encodeIfPresent(swatchShape, forKey: .swatchShape)
+        try container.encodeIfPresent(enabledSpaces, forKey: .enabledSpaces)
+        try container.encodeIfPresent(tabOrientation, forKey: .tabOrientation)
     }
 }
 
@@ -179,21 +218,23 @@ struct WidgetSizeConstraints {
     static func constraints(for type: WidgetType) -> WidgetSizeConstraints {
         switch type {
         case .colorSwatch:
-            return WidgetSizeConstraints(minWidth: 40, minHeight: 40, defaultWidth: 52, defaultHeight: 52, maxHeight: nil, isHeightResizable: true, isFixedSize: false)
+            return WidgetSizeConstraints(minWidth: 20, minHeight: 20, defaultWidth: 52, defaultHeight: 52, maxHeight: nil, isHeightResizable: true, isFixedSize: false)
         case .colorSpaceTabs:
-            return WidgetSizeConstraints(minWidth: 100, minHeight: 34, defaultWidth: 192, defaultHeight: 34, maxHeight: 34, isHeightResizable: false, isFixedSize: false)
+            return WidgetSizeConstraints(minWidth: 100, minHeight: 20, defaultWidth: 192, defaultHeight: 34, maxHeight: nil, isHeightResizable: true, isFixedSize: false)
         case .hexField:
-            return WidgetSizeConstraints(minWidth: 100, minHeight: 28, defaultWidth: 252, defaultHeight: 28, maxHeight: 28, isHeightResizable: false, isFixedSize: false)
+            return WidgetSizeConstraints(minWidth: 100, minHeight: 20, defaultWidth: 252, defaultHeight: 28, maxHeight: nil, isHeightResizable: true, isFixedSize: false)
+        case .colorSpaceField:
+            return WidgetSizeConstraints(minWidth: 100, minHeight: 20, defaultWidth: 252, defaultHeight: 28, maxHeight: nil, isHeightResizable: true, isFixedSize: false)
         case .spectrumPicker:
             return WidgetSizeConstraints(minWidth: 80, minHeight: 80, defaultWidth: 252, defaultHeight: 170, maxHeight: 400, isHeightResizable: true, isFixedSize: false)
         case .channelSliders:
             return WidgetSizeConstraints(minWidth: 120, minHeight: 106, defaultWidth: 252, defaultHeight: 106, maxHeight: nil, isHeightResizable: false, isFixedSize: false)
         case .recentColors:
-            return WidgetSizeConstraints(minWidth: 60, minHeight: 28, defaultWidth: 252, defaultHeight: 28, maxHeight: nil, isHeightResizable: false, isFixedSize: false)
+            return WidgetSizeConstraints(minWidth: 28, minHeight: 28, defaultWidth: 252, defaultHeight: 28, maxHeight: nil, isHeightResizable: true, isFixedSize: false)
         case .eyedropperButton, .settingsButton:
-            return WidgetSizeConstraints(minWidth: 28, minHeight: 28, defaultWidth: 28, defaultHeight: 28, maxHeight: 28, isHeightResizable: false, isFixedSize: true)
+            return WidgetSizeConstraints(minWidth: 20, minHeight: 20, defaultWidth: 28, defaultHeight: 28, maxHeight: nil, isHeightResizable: true, isFixedSize: false)
         case .copyButton:
-            return WidgetSizeConstraints(minWidth: 60, minHeight: 28, defaultWidth: 80, defaultHeight: 28, maxHeight: 28, isHeightResizable: false, isFixedSize: false)
+            return WidgetSizeConstraints(minWidth: 28, minHeight: 20, defaultWidth: 80, defaultHeight: 28, maxHeight: nil, isHeightResizable: true, isFixedSize: false)
         case .divider:
             return WidgetSizeConstraints(minWidth: 20, minHeight: 1, defaultWidth: 252, defaultHeight: 1, maxHeight: 1, isHeightResizable: false, isFixedSize: false)
         }

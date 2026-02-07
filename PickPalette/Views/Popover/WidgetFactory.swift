@@ -17,13 +17,18 @@ enum WidgetFactory {
 
         switch config.widgetType {
         case .colorSwatch:
-            WidgetColorSwatch(appState: appState)
+            WidgetColorSwatch(appState: appState, size: min(availableWidth, height), shape: config.swatchShape ?? .circle)
 
         case .colorSpaceTabs:
-            WidgetColorSpaceTabs(appState: appState)
+            let spaces = config.enabledSpaces?.compactMap { ColorSpaceGroup(rawValue: $0) }
+            let orient: Axis = (config.tabOrientation ?? .horizontal) == .vertical ? .vertical : .horizontal
+            WidgetColorSpaceTabs(appState: appState, height: height, enabledSpaces: spaces, orientation: orient)
 
         case .hexField:
-            WidgetHexField(appState: appState)
+            WidgetHexField(appState: appState, height: height)
+
+        case .colorSpaceField:
+            WidgetColorSpaceField(appState: appState, height: height)
 
         case .spectrumPicker:
             SpectrumPickerView(
@@ -36,23 +41,23 @@ enum WidgetFactory {
             ColorSlidersView(appState: appState)
 
         case .recentColors:
-            RecentColorsView(appState: appState)
+            RecentColorsView(appState: appState, width: availableWidth, height: height)
 
         case .eyedropperButton:
-            ToolbarButton(icon: "eyedropper", tooltip: "Pick color from screen") {
+            ToolbarButton(icon: "eyedropper", tooltip: "Pick color from screen", width: availableWidth, height: height) {
                 onEyedropper()
             }
 
         case .copyButton:
             let formatID = config.formatID ?? ColorFormat.hexFormat.id
             let format = appState.formats.first(where: { $0.id == formatID }) ?? ColorFormat.hexFormat
-            CopyFormatButton(format: format) {
+            CopyFormatButton(format: format, width: availableWidth, height: height) {
                 appState.copyColor(format: format)
                 appState.addToRecent(appState.currentColor)
             }
 
         case .settingsButton:
-            ToolbarButton(icon: "gearshape", tooltip: "Settings") {
+            ToolbarButton(icon: "gearshape", tooltip: "Settings", width: availableWidth, height: height) {
                 onOpenSettings()
             }
 
