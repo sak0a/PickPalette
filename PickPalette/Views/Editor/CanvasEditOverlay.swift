@@ -18,6 +18,7 @@ struct CanvasEditOverlay: View {
     @State private var isDragging = false
     @State private var dragStartX: CGFloat = 0
     @State private var dragStartY: CGFloat = 0
+    @State private var dragOffset: CGSize = .zero
     @State private var isHovering = false
     @Environment(\.useGlassStyle) private var useGlassStyle
     @Environment(\.colorScheme) private var colorScheme
@@ -25,15 +26,28 @@ struct CanvasEditOverlay: View {
     // Resize state
     @State private var isResizing = false
     @State private var resizeStartRect: CGRect = .zero
+    @State private var liveResizeRect: CGRect? = nil
 
     private var constraints: WidgetSizeConstraints {
         WidgetSizeConstraints.constraints(for: config.widgetType)
     }
 
-    private var widgetX: CGFloat { config.x ?? 0 }
-    private var widgetY: CGFloat { config.y ?? 0 }
-    private var widgetW: CGFloat { config.width ?? constraints.defaultWidth }
-    private var widgetH: CGFloat { config.height ?? constraints.defaultHeight }
+    private var widgetX: CGFloat {
+        if let r = liveResizeRect { return r.origin.x }
+        return (config.x ?? 0) + dragOffset.width
+    }
+    private var widgetY: CGFloat {
+        if let r = liveResizeRect { return r.origin.y }
+        return (config.y ?? 0) + dragOffset.height
+    }
+    private var widgetW: CGFloat {
+        if let r = liveResizeRect { return r.size.width }
+        return config.width ?? constraints.defaultWidth
+    }
+    private var widgetH: CGFloat {
+        if let r = liveResizeRect { return r.size.height }
+        return config.height ?? constraints.defaultHeight
+    }
     private var controlSurfaceStyle: AnyShapeStyle {
         useGlassStyle
             ? AnyShapeStyle(.ultraThinMaterial)
@@ -188,18 +202,17 @@ struct CanvasEditOverlay: View {
             .onChanged { value in
                 if !isDragging {
                     isDragging = true
-                    dragStartX = widgetX
-                    dragStartY = widgetY
+                    dragStartX = config.x ?? 0
+                    dragStartY = config.y ?? 0
                     onSelect()
                 }
 
                 let dx = value.translation.width / canvasScale
                 let dy = value.translation.height / canvasScale
 
-                let newX = dragStartX + dx
-                let newY = dragStartY + dy
-
-                let proposedRect = CGRect(x: newX, y: newY, width: widgetW, height: widgetH)
+                let baseW = config.width ?? constraints.defaultWidth
+                let baseH = config.height ?? constraints.defaultHeight
+                let proposedRect = CGRect(x: dragStartX + dx, y: dragStartY + dy, width: baseW, height: baseH)
                 let containerSize = CGSize(
                     width: appState.layoutConfig.containerWidth,
                     height: appState.layoutConfig.containerHeight
@@ -209,13 +222,23 @@ struct CanvasEditOverlay: View {
                     for: proposedRect,
                     in: containerSize,
                     others: otherWidgets,
-                    threshold: 5
+                    threshold: 5,
+                    gridSpacing: appState.layoutConfig.dotGridSpacing
                 )
 
-                updatePosition(x: snapResult.snappedRect.origin.x, y: snapResult.snappedRect.origin.y)
+                // Update local offset only — no appState mutation during drag
+                dragOffset = CGSize(
+                    width: snapResult.snappedRect.origin.x - (config.x ?? 0),
+                    height: snapResult.snappedRect.origin.y - (config.y ?? 0)
+                )
                 onGuides(snapResult.activeGuides)
             }
             .onEnded { _ in
+                // Commit final position to appState once
+                let finalX = (config.x ?? 0) + dragOffset.width
+                let finalY = (config.y ?? 0) + dragOffset.height
+                updatePosition(x: finalX, y: finalY)
+                dragOffset = .zero
                 isDragging = false
                 onGuides([])
                 appState.save()
@@ -282,7 +305,9 @@ struct CanvasEditOverlay: View {
             .onChanged { value in
                 if !isResizing {
                     isResizing = true
-                    resizeStartRect = CGRect(x: widgetX, y: widgetY, width: widgetW, height: widgetH)
+                    let baseW = config.width ?? constraints.defaultWidth
+                    let baseH = config.height ?? constraints.defaultHeight
+                    resizeStartRect = CGRect(x: config.x ?? 0, y: config.y ?? 0, width: baseW, height: baseH)
                 }
 
                 let dx = value.translation.width / canvasScale
@@ -352,13 +377,20 @@ struct CanvasEditOverlay: View {
                     for: newRect,
                     in: containerSize,
                     others: otherWidgets,
-                    threshold: 5
+                    threshold: 5,
+                    gridSpacing: appState.layoutConfig.dotGridSpacing
                 )
 
-                updateRect(snapResult.snappedRect)
+                // Update local state only — no appState mutation during resize
+                liveResizeRect = snapResult.snappedRect
                 onGuides(snapResult.activeGuides)
             }
             .onEnded { _ in
+                // Commit final rect to appState once
+                if let finalRect = liveResizeRect {
+                    updateRect(finalRect)
+                }
+                liveResizeRect = nil
                 isResizing = false
                 onGuides([])
                 appState.save()

@@ -2,6 +2,71 @@ import SwiftUI
 import AppKit
 import Carbon
 
+// MARK: - Swatch Appearance
+
+enum SwatchShape: String, Codable, CaseIterable {
+    case circle
+    case roundedRect
+    case square
+
+    var displayName: String {
+        switch self {
+        case .circle:      return "Circle"
+        case .roundedRect: return "Rounded"
+        case .square:      return "Square"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .circle:      return "circle.fill"
+        case .roundedRect: return "app.fill"
+        case .square:      return "square.fill"
+        }
+    }
+}
+
+enum SwatchSize: String, Codable, CaseIterable {
+    case small
+    case medium
+    case large
+
+    var displayName: String {
+        switch self {
+        case .small:  return "S"
+        case .medium: return "M"
+        case .large:  return "L"
+        }
+    }
+
+    /// Outer frame diameter / side length
+    var outerSize: CGFloat {
+        switch self {
+        case .small:  return 36
+        case .medium: return 52
+        case .large:  return 68
+        }
+    }
+
+    /// Inner color fill diameter / side length
+    var innerSize: CGFloat {
+        switch self {
+        case .small:  return 28
+        case .medium: return 44
+        case .large:  return 58
+        }
+    }
+
+    /// Corner radius for roundedRect shape
+    var cornerRadius: CGFloat {
+        switch self {
+        case .small:  return 6
+        case .medium: return 10
+        case .large:  return 14
+        }
+    }
+}
+
 /// Observable central state for the entire app.
 @Observable
 final class AppState {
@@ -17,6 +82,8 @@ final class AppState {
 
     // Recent colors
     var recentColors: [ColorModel] = []
+    var maxRecentColors: Int = 20
+    var recentColorsScrollEnabled: Bool = true
 
     // Palettes
     var palettes: [ColorPalette] = []
@@ -28,6 +95,8 @@ final class AppState {
     var compactMode: Bool = false
     var useGlassStyle: Bool = true
     var popoverLayout: PopoverLayout = .vertical
+    var swatchShape: SwatchShape = .circle
+    var swatchSize: SwatchSize = .medium
     var hotkeyKeyCode: UInt32 = 0x08   // 'C' key
     var hotkeyModifiers: UInt32 = UInt32(optionKey | shiftKey) // Option+Shift
 
@@ -91,8 +160,8 @@ final class AppState {
             abs(existing.alpha - color.alpha) < 0.005
         }
         recentColors.insert(color, at: 0)
-        if recentColors.count > 20 {
-            recentColors = Array(recentColors.prefix(20))
+        if recentColors.count > maxRecentColors {
+            recentColors = Array(recentColors.prefix(maxRecentColors))
         }
         save()
     }
@@ -144,7 +213,11 @@ final class AppState {
             showRecentColors: showRecentColors,
             popoverLayout: popoverLayout,
             layoutConfig: layoutConfig,
-            enabledColorSpaces: enabledColorSpaces
+            enabledColorSpaces: enabledColorSpaces,
+            swatchShape: swatchShape,
+            swatchSize: swatchSize,
+            maxRecentColors: maxRecentColors,
+            recentColorsScrollEnabled: recentColorsScrollEnabled
         )
         if let encoded = try? JSONEncoder().encode(data) {
             try? encoded.write(to: Self.stateURL, options: .atomic)
@@ -173,6 +246,10 @@ final class AppState {
         showRecentColors = state.showRecentColors ?? true
         popoverLayout = state.popoverLayout ?? .vertical
         if let ecs = state.enabledColorSpaces, !ecs.isEmpty { enabledColorSpaces = ecs }
+        if let shape = state.swatchShape { swatchShape = shape }
+        if let size  = state.swatchSize  { swatchSize  = size  }
+        if let maxRC = state.maxRecentColors { maxRecentColors = maxRC }
+        if let scrollEnabled = state.recentColorsScrollEnabled { recentColorsScrollEnabled = scrollEnabled }
 
         // Widget layout config — use saved or migrate from legacy fields
         if let lc = state.layoutConfig {
@@ -241,6 +318,10 @@ private struct PersistentState: Codable {
     var popoverLayout: PopoverLayout?
     var layoutConfig: PopoverLayoutConfig?
     var enabledColorSpaces: [ColorSpaceGroup]?
+    var swatchShape: SwatchShape?
+    var swatchSize: SwatchSize?
+    var maxRecentColors: Int?
+    var recentColorsScrollEnabled: Bool?
 }
 
 // MARK: - Supporting Types

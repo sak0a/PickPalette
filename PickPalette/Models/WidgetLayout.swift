@@ -210,6 +210,7 @@ struct PopoverLayoutConfig: Codable, Equatable {
     var containerHeight: CGFloat
     var gridSpacing: CGFloat
     var edgePadding: CGFloat
+    var dotGridSpacing: CGFloat
 
     init(
         name: String = "Custom",
@@ -217,7 +218,8 @@ struct PopoverLayoutConfig: Codable, Equatable {
         containerWidth: CGFloat = 280,
         containerHeight: CGFloat = 400,
         gridSpacing: CGFloat = 0,
-        edgePadding: CGFloat = 14
+        edgePadding: CGFloat = 14,
+        dotGridSpacing: CGFloat = 20
     ) {
         self.name = name
         self.widgets = widgets
@@ -225,11 +227,12 @@ struct PopoverLayoutConfig: Codable, Equatable {
         self.containerHeight = containerHeight
         self.gridSpacing = gridSpacing
         self.edgePadding = edgePadding
+        self.dotGridSpacing = dotGridSpacing
     }
 
-    // Custom Codable to handle missing containerHeight in old JSON
+    // Custom Codable to handle missing fields in old JSON
     private enum CodingKeys: String, CodingKey {
-        case name, widgets, containerWidth, containerHeight, gridSpacing, edgePadding
+        case name, widgets, containerWidth, containerHeight, gridSpacing, edgePadding, dotGridSpacing
     }
 
     init(from decoder: Decoder) throws {
@@ -240,6 +243,7 @@ struct PopoverLayoutConfig: Codable, Equatable {
         containerHeight = try container.decodeIfPresent(CGFloat.self, forKey: .containerHeight) ?? 400
         gridSpacing = try container.decode(CGFloat.self, forKey: .gridSpacing)
         edgePadding = try container.decode(CGFloat.self, forKey: .edgePadding)
+        dotGridSpacing = try container.decodeIfPresent(CGFloat.self, forKey: .dotGridSpacing) ?? 20
     }
 }
 

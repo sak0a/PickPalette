@@ -22,13 +22,14 @@ struct SnapResult {
 enum SnapGuideEngine {
 
     /// Compute snapped position for a proposed rect.
-    /// Checks alignment with container edges/center and other widgets' edges (not centers).
+    /// Checks alignment with container edges/center, grid lines, and other widgets' edges (not centers).
     /// Uses deduplicated reference sets to avoid over-snapping.
     static func computeSnap(
         for proposed: CGRect,
         in containerSize: CGSize,
         others: [WidgetConfig],
-        threshold: CGFloat = 5
+        threshold: CGFloat = 5,
+        gridSpacing: CGFloat = 0
     ) -> SnapResult {
         var snappedRect = proposed
         var guides: [SnapGuide] = []
@@ -40,6 +41,20 @@ enum SnapGuideEngine {
         // Container edges and center
         hRefs.formUnion([0, round(containerSize.height / 2), containerSize.height])
         vRefs.formUnion([0, round(containerSize.width / 2), containerSize.width])
+
+        // Grid lines (if spacing > 0)
+        if gridSpacing > 0 {
+            var gx: CGFloat = gridSpacing
+            while gx < containerSize.width {
+                vRefs.insert(round(gx))
+                gx += gridSpacing
+            }
+            var gy: CGFloat = gridSpacing
+            while gy < containerSize.height {
+                hRefs.insert(round(gy))
+                gy += gridSpacing
+            }
+        }
 
         // Other widgets — edges only (no center), rounded to avoid float noise
         for widget in others {

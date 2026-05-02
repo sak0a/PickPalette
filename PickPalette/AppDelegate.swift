@@ -55,6 +55,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             AccessibilityHelper.requestAccess()
         }
 
+        // Check for updates after a short delay (non-blocking)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+            UpdateChecker.checkForUpdates()
+        }
+
         // Show onboarding on first launch
         if !UserDefaults.standard.bool(forKey: "hasSeenOnboarding") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
@@ -81,6 +86,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         statusMenu.addItem(withTitle: "Pick Color", action: #selector(pickColorAction), keyEquivalent: "")
         statusMenu.addItem(.separator())
         statusMenu.addItem(withTitle: "Settings...", action: #selector(openSettingsAction), keyEquivalent: ",")
+        statusMenu.addItem(.separator())
+        statusMenu.addItem(withTitle: "Check for Updates…", action: #selector(checkForUpdatesAction), keyEquivalent: "")
         statusMenu.addItem(.separator())
         statusMenu.addItem(withTitle: "Quit PickPalette", action: #selector(quitAction), keyEquivalent: "q")
         for item in statusMenu.items {
@@ -109,6 +116,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
     @objc private func openSettingsAction() {
         openSettings()
+    }
+
+    @objc private func checkForUpdatesAction() {
+        UpdateChecker.checkForUpdates(manual: true)
     }
 
     @objc private func quitAction() {
