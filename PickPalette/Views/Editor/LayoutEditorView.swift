@@ -55,16 +55,64 @@ struct KeyEventView: NSViewRepresentable {
     }
 }
 
+// MARK: - Scroll Wheel Zoom (NSViewRepresentable)
+
+/// An invisible NSView overlay that intercepts mouse scroll-wheel events for zoom.
+/// Trackpad two-finger scrolls pass through to the ScrollView for panning.
+struct ScrollWheelZoomView: NSViewRepresentable {
+    var onZoom: (CGFloat) -> Void
+
+    func makeNSView(context: Context) -> ZoomCaptureNSView {
+        let view = ZoomCaptureNSView()
+        view.onZoom = onZoom
+        return view
+    }
+
+    func updateNSView(_ nsView: ZoomCaptureNSView, context: Context) {
+        nsView.onZoom = onZoom
+    }
+
+    class ZoomCaptureNSView: NSView {
+        var onZoom: ((CGFloat) -> Void)?
+
+        override func scrollWheel(with event: NSEvent) {
+            if !event.hasPreciseScrollingDeltas {
+                // Mouse scroll wheel → zoom (no modifier needed)
+                let delta = event.scrollingDeltaY * 0.05
+                onZoom?(delta)
+            } else {
+                // Trackpad two-finger scroll → pass through for panning
+                super.scrollWheel(with: event)
+            }
+        }
+    }
+}
+
+// MARK: - CGFloat Zoom Helpers
+
+private extension CGFloat {
+    func clamped(to range: ClosedRange<CGFloat>) -> CGFloat {
+        Swift.min(Swift.max(self, range.lowerBound), range.upperBound)
+    }
+}
+
 /// Root view for the layout editor window.
 /// Shows a scaled canvas with dot-grid background, editable widgets, snap guides,
-/// toolbar with add/scale/preset controls, and bottom size sliders.
+/// toolbar with add/zoom/preset controls, and a right-side inspector panel.
 struct LayoutEditorView: View {
     @Bindable var appState: AppState
     var onDone: () -> Void
 
+    private let minZoom: CGFloat = 0.5
+    private let maxZoom: CGFloat = 5.0
+
     @State private var canvasScale: CGFloat = 2.0
+    @State private var pinchBaseScale: CGFloat = 2.0
     @State private var selectedWidgetID: UUID? = nil
     @State private var activeGuides: [SnapGuide] = []
+    @State private var saveTask: Task<Void, Never>? = nil
+    @State private var dotGridSpacing: CGFloat = 20
+    @State private var canvasViewportSize: CGSize = .zero
     @Environment(\.useGlassStyle) private var useGlassStyle
     @Environment(\.colorScheme) private var colorScheme
 
@@ -91,26 +139,71 @@ struct LayoutEditorView: View {
 
                 Divider().opacity(0.3)
 
-                // Canvas area
-                ScrollView([.horizontal, .vertical]) {
-                    canvasContent
-                        .padding(40)
-                }
-                .background(Color(NSColor.controlBackgroundColor).opacity(0.5))
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .onTapGesture {
-                    // Deselect when clicking empty canvas area
-                    selectedWidgetID = nil
-                }
+                // Main content: canvas + inspector
+                HStack(spacing: 0) {
+                    // Canvas area
+                    GeometryReader { geo in
+                        ScrollView([.horizontal, .vertical]) {
+                            canvasContent
+                                .padding(40)
+                        }
+                        .background(Color(NSColor.controlBackgroundColor).opacity(0.5))
+                        .onTapGesture {
+                            selectedWidgetID = nil
+                        }
+                        // Pinch-to-zoom on trackpad
+                        .simultaneousGesture(
+                            MagnifyGesture()
+                                .onChanged { value in
+                                    canvasScale = (pinchBaseScale * value.magnification)
+                                        .clamped(to: minZoom...maxZoom)
+                                }
+                                .onEnded { _ in
+                                    pinchBaseScale = canvasScale
+                                }
+                        )
+                        // Mouse scroll wheel → zoom, trackpad scroll → pan
+                        .overlay {
+                            ScrollWheelZoomView { delta in
+                                let newScale = (canvasScale + delta).clamped(to: minZoom...maxZoom)
+                                canvasScale = newScale
+                                pinchBaseScale = newScale
+                            }
+                            .allowsHitTesting(false)
+                        }
+                        .onAppear { canvasViewportSize = geo.size }
+                        .onChange(of: geo.size) { _, newSize in canvasViewportSize = newSize }
+                    }
 
-                Divider().opacity(0.3)
+                    Divider().opacity(0.3)
 
-                // Bottom controls
-                bottomControls
+                    // Inspector sidebar
+                    EditorInspectorView(
+                        appState: appState,
+                        selectedWidgetID: $selectedWidgetID,
+                        dotGridSpacing: $dotGridSpacing
+                    )
+                }
             }
         }
-        .frame(minWidth: 600, minHeight: 400)
+        .frame(minWidth: 700, minHeight: 400)
         .environment(\.useGlassStyle, appState.effectiveGlassStyle)
+        .onAppear {
+            dotGridSpacing = appState.layoutConfig.dotGridSpacing
+        }
+        .onChange(of: appState.layoutConfig.dotGridSpacing) { _, newValue in
+            dotGridSpacing = newValue
+        }
+        .onChange(of: appState.layoutConfig.containerWidth) { _, _ in
+            debouncedSave()
+        }
+        .onChange(of: appState.layoutConfig.containerHeight) { _, _ in
+            debouncedSave()
+        }
+        .onDisappear {
+            saveTask?.cancel()
+            appState.save()
+        }
     }
 
     // MARK: - Toolbar
@@ -125,37 +218,45 @@ struct LayoutEditorView: View {
 
             Spacer()
 
-            // Scale control
-            HStack(spacing: 4) {
-                Text("Zoom")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.tertiary)
-
-                ForEach([1.0, 1.5, 2.0, 3.0], id: \.self) { scale in
-                    let isActive = abs(canvasScale - scale) < 0.01
-                    Button {
-                        withAnimation(.spring(duration: 0.2)) {
-                            canvasScale = scale
-                        }
-                    } label: {
-                        Text("\(scale, specifier: scale == floor(scale) ? "%.0f" : "%.1f")x")
-                            .font(.system(size: 10, weight: isActive ? .bold : .medium))
-                            .foregroundStyle(isActive ? .white : .secondary)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(
-                                RoundedRectangle(cornerRadius: 4)
-                                    .fill(isActive ? Color.accentColor : Color.primary.opacity(0.06))
-                            )
-                    }
-                    .buttonStyle(.plain)
+            // Zoom controls
+            HStack(spacing: 6) {
+                // Fit button
+                Button {
+                    zoomToFit()
+                } label: {
+                    Image(systemName: "arrow.up.left.and.arrow.down.right")
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 22, height: 22)
+                        .background(
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(Color.primary.opacity(0.06))
+                        )
                 }
+                .buttonStyle(.plain)
+                .help("Zoom to Fit")
+
+                // Zoom slider
+                Slider(value: Binding(
+                    get: { canvasScale },
+                    set: { canvasScale = $0; pinchBaseScale = $0 }
+                ), in: minZoom...maxZoom)
+                    .frame(width: 80)
+                    .controlSize(.small)
+
+                // Current zoom percentage
+                Text("\(Int(canvasScale * 100))%")
+                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 38, alignment: .trailing)
             }
 
             // Preset menu
             presetMenu
 
             Button {
+                saveTask?.cancel()
+                appState.save()
                 onDone()
             } label: {
                 Text("Done")
@@ -265,6 +366,7 @@ struct LayoutEditorView: View {
             }
         }
         .frame(width: layout.containerWidth, height: layout.containerHeight)
+        .drawingGroup()
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .overlay(
             RoundedRectangle(cornerRadius: 8)
@@ -283,9 +385,10 @@ struct LayoutEditorView: View {
 
     private var dotGridBackground: some View {
         Canvas { context, size in
-            let spacing: CGFloat = 10
-            let dotRadius: CGFloat = 0.5
-            let color = Color.primary.opacity(0.08)
+            let spacing = dotGridSpacing
+            guard spacing > 0 else { return }
+            let dotRadius: CGFloat = 0.75
+            let color = Color.primary.opacity(0.1)
 
             var y: CGFloat = spacing
             while y < size.height {
@@ -321,84 +424,18 @@ struct LayoutEditorView: View {
         }
     }
 
-    // MARK: - Bottom Controls
+    // MARK: - Zoom Actions
 
-    private var bottomControls: some View {
-        HStack(spacing: 20) {
-            // Width slider
-            HStack(spacing: 8) {
-                Text("Width")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.secondary)
-
-                Slider(
-                    value: $appState.layoutConfig.containerWidth,
-                    in: 200...600,
-                    step: 5
-                )
-                .frame(width: 120)
-
-                Text("\(Int(layout.containerWidth))pt")
-                    .font(.system(size: 11, weight: .medium, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 42, alignment: .trailing)
-            }
-
-            // Height slider
-            HStack(spacing: 8) {
-                Text("Height")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.secondary)
-
-                Slider(
-                    value: $appState.layoutConfig.containerHeight,
-                    in: 100...800,
-                    step: 5
-                )
-                .frame(width: 120)
-
-                Text("\(Int(layout.containerHeight))pt")
-                    .font(.system(size: 11, weight: .medium, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 42, alignment: .trailing)
-            }
-
-            Spacer()
-
-            // Preset quick buttons
-            HStack(spacing: 6) {
-                ForEach(PopoverLayoutConfig.presets, id: \.name) { preset in
-                    let isActive = layout.name == preset.name
-                        && layout.widgets.map(\.widgetType) == preset.widgets.map(\.widgetType)
-                        && layout.containerWidth == preset.containerWidth
-
-                    Button {
-                        withAnimation(.spring(duration: 0.3)) {
-                            appState.layoutConfig = preset
-                            appState.save()
-                        }
-                    } label: {
-                        Text(preset.name)
-                            .font(.system(size: 10, weight: isActive ? .bold : .medium))
-                            .foregroundStyle(isActive ? .white : .secondary)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 4)
-                            .background(
-                                Capsule()
-                                    .fill(isActive ? Color.accentColor : Color.primary.opacity(0.06))
-                            )
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
+    private func zoomToFit() {
+        guard canvasViewportSize.width > 0, canvasViewportSize.height > 0 else { return }
+        let padding: CGFloat = 80  // leave some margin
+        let scaleX = (canvasViewportSize.width - padding) / layout.containerWidth
+        let scaleY = (canvasViewportSize.height - padding) / layout.containerHeight
+        let fitScale = min(scaleX, scaleY).clamped(to: minZoom...maxZoom)
+        withAnimation(.spring(duration: 0.3)) {
+            canvasScale = fitScale
+            pinchBaseScale = fitScale
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .background(
-            useGlassStyle
-                ? AnyShapeStyle(.ultraThinMaterial)
-                : AnyShapeStyle(colorScheme == .dark ? Color(white: 0.12) : Color(white: 0.94))
-        )
     }
 
     // MARK: - Keyboard Actions
@@ -408,7 +445,16 @@ struct LayoutEditorView: View {
               let index = appState.layoutConfig.widgets.firstIndex(where: { $0.id == widgetID }) else { return }
         appState.layoutConfig.widgets[index].x = (appState.layoutConfig.widgets[index].x ?? 0) + dx
         appState.layoutConfig.widgets[index].y = (appState.layoutConfig.widgets[index].y ?? 0) + dy
-        appState.save()
+        debouncedSave()
+    }
+
+    private func debouncedSave() {
+        saveTask?.cancel()
+        saveTask = Task {
+            try? await Task.sleep(for: .milliseconds(300))
+            guard !Task.isCancelled else { return }
+            appState.save()
+        }
     }
 
     private func deleteSelectedWidget() {

@@ -3,27 +3,59 @@ import SwiftUI
 /// Horizontal strip of recent color swatches — glass capsule style.
 struct RecentColorsView: View {
     @Bindable var appState: AppState
+    var availableWidth: CGFloat = 252
+
+    private let swatchSize: CGFloat = 22
+    private let spacing: CGFloat = 5
+    private let hPadding: CGFloat = 2
+
+    /// How many full swatches fit without being clipped.
+    private var visibleCount: Int {
+        let usable = availableWidth - hPadding * 2
+        guard usable > 0 else { return 0 }
+        // Each swatch takes swatchSize + spacing, last one doesn't need trailing spacing
+        let count = Int((usable + spacing) / (swatchSize + spacing))
+        return max(0, count)
+    }
+
+    private var displayColors: [ColorModel] {
+        if appState.recentColorsScrollEnabled {
+            return appState.recentColors
+        } else {
+            return Array(appState.recentColors.prefix(visibleCount))
+        }
+    }
 
     var body: some View {
         if !appState.recentColors.isEmpty {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 5) {
-                    ForEach(appState.recentColors) { color in
-                        RecentColorSwatch(
-                            color: color,
-                            isSelected: isSameColor(color, appState.currentColor)
-                        ) {
-                            withAnimation(.spring(duration: 0.2)) {
-                                appState.setColor(color)
-                            }
-                        }
+            Group {
+                if appState.recentColorsScrollEnabled {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        recentColorsContent
                     }
+                } else {
+                    recentColorsContent
                 }
-                .padding(.horizontal, 2)
-                .padding(.vertical, 2)
             }
             .frame(height: 28)
         }
+    }
+
+    private var recentColorsContent: some View {
+        HStack(spacing: spacing) {
+            ForEach(displayColors) { color in
+                RecentColorSwatch(
+                    color: color,
+                    isSelected: isSameColor(color, appState.currentColor)
+                ) {
+                    withAnimation(.spring(duration: 0.2)) {
+                        appState.setColor(color)
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, hPadding)
+        .padding(.vertical, 2)
     }
 
     private func isSameColor(_ a: ColorModel, _ b: ColorModel) -> Bool {

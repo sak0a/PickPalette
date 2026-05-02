@@ -36,7 +36,7 @@ enum WidgetFactory {
             ColorSlidersView(appState: appState)
 
         case .recentColors:
-            RecentColorsView(appState: appState)
+            RecentColorsView(appState: appState, availableWidth: availableWidth)
 
         case .eyedropperButton:
             ToolbarButton(icon: "eyedropper", tooltip: "Pick color from screen") {
