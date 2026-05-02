@@ -3,15 +3,25 @@ import SwiftUI
 // MARK: - Color Swatch Widget
 
 /// Standalone color swatch that respects the user's chosen shape and size.
+/// Scales down to fit when the container is smaller than the natural content height.
 struct WidgetColorSwatch: View {
     @Bindable var appState: AppState
     @Environment(\.useGlassStyle) private var useGlassStyle
     @Environment(\.colorScheme) private var colorScheme
 
+    private var naturalContentHeight: CGFloat {
+        appState.swatchSize.outerSize + 6 + 18
+    }
+
     var body: some View {
-        VStack(spacing: 6) {
-            swatchView
-            swatchControls
+        GeometryReader { geo in
+            let scale = min(1.0, geo.size.height / max(naturalContentHeight, 1))
+            VStack(spacing: 6) {
+                swatchView
+                swatchControls
+            }
+            .scaleEffect(scale, anchor: .center)
+            .position(x: geo.size.width / 2, y: geo.size.height / 2)
         }
     }
 
