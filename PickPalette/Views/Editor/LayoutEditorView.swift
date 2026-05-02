@@ -107,6 +107,7 @@ struct LayoutEditorView: View {
     private let maxZoom: CGFloat = 5.0
 
     @State private var canvasScale: CGFloat = 2.0
+    @State private var pinchBaseScale: CGFloat = 2.0
     @State private var selectedWidgetID: UUID? = nil
     @State private var activeGuides: [SnapGuide] = []
     @State private var saveTask: Task<Void, Never>? = nil
@@ -154,9 +155,11 @@ struct LayoutEditorView: View {
                         .simultaneousGesture(
                             MagnifyGesture()
                                 .onChanged { value in
-                                    let newScale = (canvasScale * value.magnification)
+                                    canvasScale = (pinchBaseScale * value.magnification)
                                         .clamped(to: minZoom...maxZoom)
-                                    canvasScale = newScale
+                                }
+                                .onEnded { _ in
+                                    pinchBaseScale = canvasScale
                                 }
                         )
                         // Mouse scroll wheel → zoom, trackpad scroll → pan
@@ -164,8 +167,9 @@ struct LayoutEditorView: View {
                             ScrollWheelZoomView { delta in
                                 let newScale = (canvasScale + delta).clamped(to: minZoom...maxZoom)
                                 canvasScale = newScale
+                                pinchBaseScale = newScale
                             }
-                            .allowsHitTesting(true)
+                            .allowsHitTesting(false)
                         }
                         .onAppear { canvasViewportSize = geo.size }
                         .onChange(of: geo.size) { _, newSize in canvasViewportSize = newSize }
@@ -186,6 +190,9 @@ struct LayoutEditorView: View {
         .environment(\.useGlassStyle, appState.effectiveGlassStyle)
         .onAppear {
             dotGridSpacing = appState.layoutConfig.dotGridSpacing
+        }
+        .onChange(of: appState.layoutConfig.dotGridSpacing) { _, newValue in
+            dotGridSpacing = newValue
         }
         .onChange(of: appState.layoutConfig.containerWidth) { _, _ in
             debouncedSave()
@@ -230,7 +237,10 @@ struct LayoutEditorView: View {
                 .help("Zoom to Fit")
 
                 // Zoom slider
-                Slider(value: $canvasScale, in: minZoom...maxZoom)
+                Slider(value: Binding(
+                    get: { canvasScale },
+                    set: { canvasScale = $0; pinchBaseScale = $0 }
+                ), in: minZoom...maxZoom)
                     .frame(width: 80)
                     .controlSize(.small)
 
@@ -424,6 +434,7 @@ struct LayoutEditorView: View {
         let fitScale = min(scaleX, scaleY).clamped(to: minZoom...maxZoom)
         withAnimation(.spring(duration: 0.3)) {
             canvasScale = fitScale
+            pinchBaseScale = fitScale
         }
     }
 

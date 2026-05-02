@@ -105,8 +105,8 @@ struct EditorInspectorView: View {
                     get: { appState.layoutConfig.widgets[safe: index]?.height ?? constraints.defaultHeight },
                     set: {
                         if index < appState.layoutConfig.widgets.count {
-                            let clamped = max(constraints.minHeight, constraints.maxHeight.map { min($0, $0) } ?? $0)
-                            appState.layoutConfig.widgets[index].height = max(constraints.minHeight, min(clamped, $0))
+                            let maxH = constraints.maxHeight ?? .infinity
+                            appState.layoutConfig.widgets[index].height = max(constraints.minHeight, min(maxH, $0))
                         }
                     }
                 ))
@@ -133,7 +133,7 @@ struct EditorInspectorView: View {
             if widget.widgetType == .copyButton {
                 inspectorSection("Format") {
                     Picker("", selection: Binding(
-                        get: { appState.layoutConfig.widgets[safe: index]?.formatID ?? UUID() },
+                        get: { appState.layoutConfig.widgets[safe: index]?.formatID ?? ColorFormat.hexFormat.id },
                         set: {
                             if index < appState.layoutConfig.widgets.count {
                                 appState.layoutConfig.widgets[index].formatID = $0

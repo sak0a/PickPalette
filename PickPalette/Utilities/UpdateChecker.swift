@@ -2,8 +2,8 @@ import AppKit
 
 struct GitHubRelease: Decodable {
     let tag_name: String
-    let name: String
-    let body: String
+    let name: String?
+    let body: String?
     let html_url: String
 }
 
@@ -18,19 +18,23 @@ final class UpdateChecker {
             let lastCheck = UserDefaults.standard.double(forKey: lastCheckKey)
             if Date().timeIntervalSince1970 - lastCheck < cooldown { return }
         }
-        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: lastCheckKey)
 
         guard let url = URL(string: "https://api.github.com/repos/\(repo)/releases/latest") else { return }
 
         var request = URLRequest(url: url)
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
+        request.timeoutInterval = 15
 
         URLSession.shared.dataTask(with: request) { data, _, _ in
             guard let data,
                   let release = try? JSONDecoder().decode(GitHubRelease.self, from: data) else {
                 if manual { DispatchQueue.main.async { showAlert(messageText: "Check Failed", informativeText: "Unable to check for updates. Please check your internet connection.", style: .warning) } }
                 return
+            }
+
+            if !manual {
+                UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: lastCheckKey)
             }
 
             let latestVersion = stripV(release.tag_name)
@@ -73,8 +77,9 @@ final class UpdateChecker {
     private static func showUpdateAlert(release: GitHubRelease, currentVersion: String) {
         let alert = NSAlert()
         alert.messageText = "Update Available"
-        let title = release.name.isEmpty ? release.tag_name : release.name
-        alert.informativeText = "PickPalette \(title) is available (you have \(currentVersion)).\n\n\(release.body)"
+        let title = (release.name?.isEmpty == false ? release.name! : release.tag_name)
+        let bodyText = release.body.flatMap { $0.isEmpty ? nil : "\n\n\($0)" } ?? ""
+        alert.informativeText = "PickPalette \(title) is available (you have \(currentVersion)).\(bodyText)"
         alert.alertStyle = .informational
         alert.addButton(withTitle: "Download")
         alert.addButton(withTitle: "Later")

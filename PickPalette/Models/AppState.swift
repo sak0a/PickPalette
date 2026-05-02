@@ -160,10 +160,14 @@ final class AppState {
             abs(existing.alpha - color.alpha) < 0.005
         }
         recentColors.insert(color, at: 0)
+        enforceRecentColorLimit()
+        save()
+    }
+
+    private func enforceRecentColorLimit() {
         if recentColors.count > maxRecentColors {
             recentColors = Array(recentColors.prefix(maxRecentColors))
         }
-        save()
     }
 
     func setColor(_ color: ColorModel) {
@@ -250,6 +254,7 @@ final class AppState {
         if let size  = state.swatchSize  { swatchSize  = size  }
         if let maxRC = state.maxRecentColors { maxRecentColors = maxRC }
         if let scrollEnabled = state.recentColorsScrollEnabled { recentColorsScrollEnabled = scrollEnabled }
+        enforceRecentColorLimit()
 
         // Widget layout config — use saved or migrate from legacy fields
         if let lc = state.layoutConfig {

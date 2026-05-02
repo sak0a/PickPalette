@@ -179,7 +179,7 @@ struct WidgetSizeConstraints {
     static func constraints(for type: WidgetType) -> WidgetSizeConstraints {
         switch type {
         case .colorSwatch:
-            return WidgetSizeConstraints(minWidth: 40, minHeight: 40, defaultWidth: 52, defaultHeight: 52, maxHeight: nil, isHeightResizable: true, isFixedSize: false)
+            return WidgetSizeConstraints(minWidth: 40, minHeight: 64, defaultWidth: 52, defaultHeight: 76, maxHeight: nil, isHeightResizable: true, isFixedSize: false)
         case .colorSpaceTabs:
             return WidgetSizeConstraints(minWidth: 100, minHeight: 34, defaultWidth: 192, defaultHeight: 34, maxHeight: 34, isHeightResizable: false, isFixedSize: false)
         case .hexField:
